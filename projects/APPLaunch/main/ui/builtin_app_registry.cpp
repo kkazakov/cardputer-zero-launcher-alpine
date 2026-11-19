@@ -85,10 +85,10 @@ constexpr BuiltinAppRegistration BUILTIN_APPS[] = {
 #endif
     {{"Calculator", "math_100.png", "app_Math", true, false},
      "@calculator_exec", false, true, false, nullptr},
-    {{"Snake", "game_100.png", "app_Game", true, false},
-     nullptr, false, true, false, append_page_app<UIGamePage>},
-    {{"Tank", "tank_100.png", "app_Tank", true, false},
-     nullptr, false, true, false, append_page_app<UITankBattlePage>},
+    // Alpine fork: the Snake and Tank demo games were dropped from the
+    // product at the user's request (the cardputer-zero-alpine image is
+    // an appliance launcher, not a games console). The page sources stay
+    // compiled for upstream parity; only the home entries are gone.
 };
 
 DynamicAppRegistry &dynamic_app_registry()

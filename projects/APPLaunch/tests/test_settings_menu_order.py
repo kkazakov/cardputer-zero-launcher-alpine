@@ -119,11 +119,11 @@ def test_launcher_settings_use_builtin_and_release_preinstalled_apps():
     assert "launcher_builtin_app_registry_entries(&count)" not in SETTINGS_ADAPTER
     assert "launcher::is_launcher_settings_origin(descriptor.origin)" in SETTINGS_ADAPTER
     assert "launcher::is_protected_launcher_app(descriptor.config_key)" in SETTINGS_ADAPTER
-    # Alpine fork: the Store and Python built-in entries are gone; the CLI
-    # terminal and the remaining built-ins stay toggleable from Launcher.
-    assert '{"Snake", "game_100.png", "app_Game", true, false}' in BUILTIN_REGISTRY
+    # Alpine fork: the Store, Python, Snake and Tank built-in entries are
+    # gone; Settings / CLI / Calculator and the device pages remain.
     assert '{"Calculator", "math_100.png", "app_Math", true, false}' in BUILTIN_REGISTRY
-    for removed in ('{"Store", "store_100.png"', '{"Python", "python_100.png"'):
+    for removed in ('{"Store", "store_100.png"', '{"Python", "python_100.png"',
+                    '{"Snake", "game_100.png"', '{"Tank", "tank_100.png"'):
         assert removed not in BUILTIN_REGISTRY
 
 
