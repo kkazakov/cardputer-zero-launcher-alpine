@@ -24,8 +24,26 @@ void LauncherUiRuntime::create_display()
 void LauncherUiRuntime::build_launcher_home()
 {
     launch_page_->create_screen();
+    apply_home_wallpaper();
     launch_->bind_ui();
     launch_page_->init_input_group();
+}
+
+// Alpine fork: the stock home background is the theme's flat black. The
+// product wants the Alpine wallpaper on the 320x170 panel, so the home
+// screen paints it as a background image (pages keep their own dark
+// surfaces). A missing asset falls back to the old black silently.
+void LauncherUiRuntime::apply_home_wallpaper()
+{
+    lv_obj_t *home = launch_page_ ? launch_page_->screen() : nullptr;
+    if (!home) return;
+    const char *wallpaper = launcher_platform::path_c("alpine_wallpaper.png");
+    if (!wallpaper || !wallpaper[0]) return;
+    lv_obj_set_style_bg_color(home, lv_color_hex(0x0A1628), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(home, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_image_src(home, wallpaper, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_image_opa(home, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_image_tiled(home, false, LV_PART_MAIN | LV_STATE_DEFAULT);
 }
 
 void LauncherUiRuntime::show_initial_screen()

@@ -23,6 +23,7 @@ public:
 private:
     void create_display();
     void build_launcher_home();
+    void apply_home_wallpaper();
     void show_initial_screen();
 
     lv_disp_t *dispp_ = nullptr;
