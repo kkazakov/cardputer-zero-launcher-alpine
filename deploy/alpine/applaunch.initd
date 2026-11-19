@@ -37,7 +37,16 @@ depend() {
 }
 
 start_pre() {
-    checkpath -f -m 0644 /var/log/applaunch.log
+    # v0.18.1 field bug: start-stop-daemon switches to command_user BEFORE
+    # it opens output_log/error_log. A root-owned 0644 log therefore fails
+    # with "start-stop-daemon: unable to open the logfile for stdout
+    # '/var/log/applaunch.log': Permission denied", the launcher never
+    # execs, and OpenRC leaves a stale pidfile ("status: crashed") — a
+    # black LCD with a perfectly healthy binary. The log must be writable
+    # by cpz before the start.
+    : >> /var/log/applaunch.log
+    chown cpz:cpz /var/log/applaunch.log
+    chmod 0664 /var/log/applaunch.log
     # /var/lib/applaunch: launcher settings, config.json and the HDMI
     # desktop preference. Owned by cpz (the launcher writes it).
     checkpath -d -m 0755 -o cpz -g cpz /var/lib/applaunch
