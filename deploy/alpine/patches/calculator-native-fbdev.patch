@@ -1,0 +1,34 @@
+diff --git a/SConstruct b/SConstruct
+index 4f28019..60a6432 100644
+--- a/SConstruct
++++ b/SConstruct
+@@ -45,10 +45,28 @@ if cross_package_enabled:
+         config_tmp_path.parent.mkdir(parents=True, exist_ok=True)
+         config_tmp_path.write_text(config_tmp_content)
+ else:
+-    config_tmp_content = "CONFIG_V9_5_LV_USE_SDL=y\n"
++    # Alpine fork: on an aarch64 host the native build targets the device
++    # (FBDEV + EVDEV, like the cross profile's config); SDL stays for x86_64
++    # host simulator builds. Upstream hardwired every non-cross build to SDL.
++    if platform.machine() == "aarch64":
++        config_tmp_content = (
++            "CONFIG_V9_5_LV_USE_LINUX_FBDEV=y\n"
++            "CONFIG_V9_5_LV_USE_EVDEV=y\n"
++            "CONFIG_V9_5_LV_DRAW_SW_ASM_NEON=y\n"
++            "CONFIG_V9_5_LV_USE_DRAW_SW_ASM=1\n"
++        )
++    else:
++        config_tmp_content = "CONFIG_V9_5_LV_USE_SDL=y\n"
+     if not config_tmp_path.exists() or config_tmp_path.read_text() != config_tmp_content:
+         config_tmp_path.parent.mkdir(parents=True, exist_ok=True)
+         config_tmp_path.write_text(config_tmp_content)
++        # config_tmp feeds the Kconfig generation: drop stale generated
++        # configs so the device settings actually take effect (the
++        # selected-defaults.txt guard only watches the profile file).
++        for generated_name in ("global_config.mk", "global_config.h", "lvgl_config.h"):
++            generated_path = Path("build") / "config" / generated_name
++            if generated_path.exists():
++                generated_path.unlink()
+ 
+ os.environ["SDK_PATH"] = str(sdk_path)
+ os.environ["EXT_COMPONENTS_PATH"] = str(ext_components_path)

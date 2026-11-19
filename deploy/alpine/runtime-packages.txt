@@ -1,0 +1,40 @@
+# deploy/alpine/runtime-packages.txt
+#
+# Alpine packages the deployed launcher needs AT RUNTIME on the device
+# image (aarch64, Alpine 3.24). The build container additionally needs the
+# -dev split packages + toolchain — see scripts/build-alpine.sh.
+#
+# The launcher binary links (musl):
+#   libfreetype.so.6      freetype            LVGL FreeType fonts
+#   libcurl.so.4          curl                updater/http worker
+#   libinput.so.10        libinput            keypad via evdev
+#   libxkbcommon.so.0     libxkbcommon        keyboard layout state
+#   libudev.so.1          eudev-libs          device monitoring
+#   libdbus-1.so.3        dbus-libs           bluez + NetworkManager
+#   libgio-2.0.so.0       glib                gio dbus clients
+#   libstdc++.so.6        libstdc++           C++ runtime
+# and dlopens opportunistically:
+#   libasound.so.2        alsa-lib            Miniaudio playback (no pulse on
+#                                            the Alpine image; ES8389 via ALSA)
+#
+# Services the launcher talks to:
+#   dbus + networkmanager  Wi-Fi/Ethernet settings drive `nmcli`; NM spawns
+#                         its own wpa_supplicant instance (the standalone
+#                         wpa_supplicant OpenRC service must NOT run)
+#   bluez                  Bluetooth settings via bluetoothctl over the
+#                         system bus (needs the dbus daemon)
+
+freetype
+curl
+libinput
+libxkbcommon
+eudev-libs
+dbus-libs
+dbus
+glib
+libstdc++
+alsa-lib
+bash
+networkmanager
+networkmanager-openrc
+bluez

@@ -1,0 +1,112 @@
+name: Build APPLaunch (Alpine musl)
+
+# Alpine fork build: native aarch64 musl compile of APPLaunch + Calculator
+# inside an alpine:3.24 container on the free arm64 runner, then the
+# deployable tree as an artifact. There is no .deb/systemd release channel
+# on this fork — the cardputer-zero-alpine image build consumes this tree
+# directly (build/25-launcher.sh unpacks it at /usr/share/APPLaunch).
+
+on:
+  push:
+    branches: [alpine, master]
+    paths:
+      - 'projects/APPLaunch/**'
+      - 'projects/Calculator/**'
+      - 'ext_components/**'
+      - 'SDK'
+      - 'scripts/build-alpine.sh'
+      - 'deploy/alpine/**'
+      - '.github/workflows/alpine-build.yml'
+  pull_request:
+    branches: [alpine, master]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "APPLAUNCH_VERSION for this build (default 1.0.0-alpine)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alpine-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Initialize submodules (SDK + Calculator)
+        run: |
+          git submodule update --init --depth=1 SDK
+          git submodule update --init --depth=1 projects/Calculator
+
+      - name: Build APPLaunch + Calculator (alpine:3.24 arm64 container)
+        run: |
+          REPO_HOST="$GITHUB_WORKSPACE" \
+            ./scripts/build-alpine.sh "${{ inputs.version || '1.0.0-alpine' }}"
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp dist-alpine/applaunch-*.tar.gz artifacts/
+          cp projects/APPLaunch/dist/M5CardputerZero-APPLaunch artifacts/
+          ( cd artifacts && sha256sum applaunch-*.tar.gz > applaunch-alpine.tar.gz.sha256 )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: applaunch-alpine-arm64
+          path: artifacts/
+          if-no-files-found: error
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Initialize submodules (SDK)
+        run: git submodule update --init --depth=1 SDK
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev python3
+
+      - name: Pre-download eventpp headers (pinned to the revision scons resolves)
+        run: |
+          REF=c472fb22e71ead0e58ff7df89e12c66b0bdfb533
+          DEST=SDK/github_source/eventpp
+          if [ ! -d "$DEST" ]; then
+            for i in 1 2 3; do
+              curl -fsSL -o /tmp/eventpp.zip "https://github.com/wqking/eventpp/archive/${REF}.zip" && break
+              echo "retry $i..."; sleep 5
+            done
+            mkdir -p SDK/github_source
+            unzip -q /tmp/eventpp.zip -d /tmp/eventpp
+            mv "/tmp/eventpp/eventpp-${REF}" "$DEST"
+          fi
+          ls "$DEST/include/eventpp/callbacklist.h" && echo "eventpp ready"
+
+      - name: Lower ASLR entropy (Ubuntu 24.04 mmap_rnd_bits exceeds what ThreadSanitizer can map)
+        run: |
+          bits=$(sudo sysctl -n vm.mmap_rnd_bits 2>/dev/null || echo 0)
+          if [ "$bits" -gt 28 ]; then
+            sudo sysctl -w vm.mmap_rnd_bits=28
+          fi
+
+      - name: Run cp0_lvgl unit tests
+        run: sh ext_components/cp0_lvgl/tests/run_tests.sh
+
+      - name: Run APPLaunch settings-tree contract tests
+        # Pure-python source contracts, including the Alpine fork's gating
+        # rules for the updater/ADB settings entries.
+        run: python3 projects/APPLaunch/tests/test_settings_menu_order.py

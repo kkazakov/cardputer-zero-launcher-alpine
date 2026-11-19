@@ -42,3 +42,7 @@ runpool*
 RUNPOOL-VERDICT.md
 council
 .workbuddy
+
+# Alpine fork build output (scripts/build-alpine.sh)
+dist-alpine
+

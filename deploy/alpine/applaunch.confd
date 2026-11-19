@@ -1,0 +1,16 @@
+# /etc/conf.d/applaunch — APPLaunch launcher service configuration.
+#
+# This file is sourced by OpenRC before the service runs; exported
+# variables land in the launcher's environment.
+#
+# The framebuffer and keyboard devices are auto-detected by the launcher
+# (/proc/fb scan for the ST7789 fbtft panel; the tca8418 keypad's
+# by-path evdev node). Override for debugging on exotic hardware:
+#
+#   export LV_LINUX_FBDEV_DEVICE=/dev/fb1
+#   export LV_LINUX_KEYBOARD_DEVICE=/dev/input/by-path/platform-3f804000.i2c-event
+
+# The launcher runs privileged; HOME anchors ~/Downloads and the
+# ensure_directory ownership logic (SUDO_UID passthrough is unused here).
+HOME=/root
+export HOME
