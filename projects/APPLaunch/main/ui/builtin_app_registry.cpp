@@ -14,7 +14,6 @@
 #include "generated/page_app.h"
 #include "launcher_platform.hpp"
 #include "model/dynamic_app_registry.hpp"
-#include "python_terminal_help.hpp"
 #include "settings/settings_page.hpp"
 #include <array>
 #include <cstring>
@@ -72,12 +71,12 @@ void append_builtin_app(std::list<app> &apps, const BuiltinAppRegistration &regi
 constexpr BuiltinAppRegistration BUILTIN_APPS[] = {
     {{"Settings", "setting_100.png", "app_Setting", false, true},
      nullptr, false, true, false, append_page_app<UISettingTreePage>},
-    {{"Store", "store_100.png", "app_Store", false, true},
-     "@appstore_exec", false, true, false, nullptr},
+    // Alpine fork: the Store and Python terminal entries are removed. The
+    // Alpine image ships no app store (its launcher build produces only the
+    // APPLaunch + Calculator pair) and no Python interpreter, so the Python
+    // terminal entry would only ever fail to spawn.
     {{"CLI", "cli_100.png", "app_CLI", false, true},
      nullptr, false, true, false, append_cli_app},
-    {{"Python", "python_100.png", "app_Python", true, false},
-     "python3", true, false, false, nullptr, create_python_help},
 #if defined(__linux__) && !defined(HAL_PLATFORM_SDL)
     {{"SSH", "ssh_100.png", "app_SSH", true, false},
      nullptr, false, true, false, append_page_app<UISSHPage>},

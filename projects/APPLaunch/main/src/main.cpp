@@ -20,11 +20,12 @@
 #include "backward.h"
 #endif
 
-const char *bash_init = "if [ ! -f ~/Downloads/hello.md ] ; then unzip /var/template.zip -d ~/Downloads/ ; sync ; fi";
+// Alpine fork: the stock-image demo unpack (template.zip -> ~/Downloads) is
+// removed together with the demo apps; nothing on this image ships
+// /var/template.zip, so the shell spawn at every boot was pure waste.
 
 int main(void)
 {
-    system(bash_init);
     Cp0LvglRunOptions options;
     options.after_resource_init = []() {
         cp0_signal_settings_api({"GpioSet", "BACKLIGHT", "0"}, [](int code, std::string data) {
