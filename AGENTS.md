@@ -10,11 +10,28 @@ Related files (all worth a quick scan):
 
 | File | Purpose |
 | --- | --- |
-| [`README_ZH.md`](README_ZH.md) / [`README.md`](README.md) / [`README_JA.md`](README_JA.md) | Dependency install, per-platform builds, running. **Start here for build problems** |
+| [`README.md`](README.md) | What this fork changes vs upstream, Alpine build + deploy. **Start here for build problems** |
 | [`projects/APPLaunch/AGENTS.md`](projects/APPLaunch/AGENTS.md) | APPLaunch specifics: `compile_commands.json` prerequisite, `CP0_ENUM_CAST` macro conventions |
 | [`ext_components/cp0_lvgl/AGENTS.md`](ext_components/cp0_lvgl/AGENTS.md) | **Platform-layer contract**; required reading before touching `cp0_signal_*` |
-| [`projects/LaunchWizard/AGENTS.md`](projects/LaunchWizard/AGENTS.md) | LaunchWizard's single hard rule: UI font size ≥ 12px |
 | [`docs/current-implementation-and-components.md`](docs/current-implementation-and-components.md) | Self-declared source-of-truth implementation snapshot + component inventory |
+
+> **ALPINE FORK — read this before planning any work here.**
+> This repository is [kkazakov/cardputer-zero-launcher-alpine](https://github.com/kkazakov/cardputer-zero-launcher-alpine),
+> the Alpine (musl/OpenRC) edition of the launcher for the
+> cardputer-zero-alpine image. **`master` tracks upstream
+> [CardputerZero/launcher](https://github.com/CardputerZero/launcher)
+> with zero local commits; every Alpine change lives on the `alpine`
+> branch** — sync by fast-forwarding `master` and rebasing `alpine` on it.
+> The fork removes: the App Store (project + home entry), demo/example
+> projects (HelloWorld, UserDemo, ZClaw, LaunchWizard, CameraApp,
+> Keyboard-Guide), the Python built-in entry, the `.deb`/systemd packaging
+> pipeline, and the non-English READMEs. The Alpine build is
+> `scripts/build-alpine.sh` (native arm64 musl build inside an
+> alpine:3.24 container — never use the glibc cross profile for this
+> target). OpenRC units live in `deploy/alpine/`. Keep the `alpine` diff
+> small and concentrated so upstream rebases stay mechanical.
+> Where this file still mentions removed projects, .deb packaging or
+> `launcher-build.yml`, those passages describe **upstream**, not this fork.
 
 **Contents**:
 [§1 Repository at a Glance](#1-repository-at-a-glance) ·
@@ -45,7 +62,7 @@ Related files (all worth a quick scan):
 ```
 launcher/
 ├── AGENTS.md                  # ← this file
-├── README{,_ZH,_JA}.md        # trilingual READMEs: deps / build / run / packaging
+├── README.md                  # fork README: Alpine build + deploy (ZH/JA READMEs removed)
 ├── SDK/                       # [submodule] M5Stack_Linux_Libs: component libs + SCons toolchain + 3rd-party source cache
 ├── ext_components/            # vendored external components (cp0_lvgl is the core platform layer)
 │   ├── cp0_lvgl/              #   ★ platform adapter: LVGL runner, AppPage bases, cp0_signal_* service bus
@@ -57,23 +74,20 @@ launcher/
 │   │   ├── *_config_defaults.mk  # 7 build profiles (see §4.1)
 │   │   ├── main/              #   main/{src,ui,ui/{animation,model,page_app,settings},include}/ + main/SConstruct
 │   │   ├── APPLaunch/         #   runtime resource tree (copied wholesale into dist/): bin share lib applications adb
-│   │   ├── tests/             #   43 .cpp unit tests + 15 Python source-contract tests + run_tests.sh (+ low_battery_ui/ runner)
+│   │   ├── tests/             #   C++ unit tests + Python source-contract tests + run_tests.sh (+ low_battery_ui/ runner)
 │   │   └── dist/ build/       #   artifacts (git-ignored, wholly replaced on every build)
-│   ├── ZClaw/                 # ZeroClaw chat/config frontend (SCons, 37 tests)
-│   ├── LaunchWizard/          # OOBE first-boot wizard (SCons for the GUI + CMake for pure-logic tests)
-│   ├── CardputerZero-Emulator/ # desktop/web device emulator (**CMake**, reuses APPLaunch/main at source level)
-│   ├── HelloWorld/ UserDemo/  # minimal example / official demo
-│   ├── AppStore/              # [submodule] app store
-│   ├── Calculator/            # [submodule] calculator
-│   ├── CameraApp/             # body lives here; main_CameraApp/ is a [submodule]
-│   └── Keyboard-Guide/        # directory lives here; main_Keyboard-Guide/ is a [submodule] (currently uninitialized)
+│   ├── Calculator/            # [submodule] calculator — the second binary the Alpine image ships
+│   └── CardputerZero-Emulator/ # desktop/web device emulator (**CMake**, reuses APPLaunch/main at source level)
+├── deploy/alpine/             # OpenRC service + conf.d + runtime package list (Alpine deployment)
 ├── docs/                      # three parallel 13-part launcher guides (zh/en/ja) + topical docs (see §11)
-├── scripts/                   # packaging / release / RPC / logging / hotplug scripts
+├── scripts/                   # build-alpine.sh (Alpine orchestrator) / RPC / logging scripts
 ├── LICENSES/                  # verbatim third-party licenses (this does NOT relicense the repo)
-├── .github/workflows/         # CI: launcher-build.yml / launcher-release.yml / emulator-build.yml
+├── .github/workflows/         # CI: alpine-build.yml / emulator-build.yml
 ├── .clang-format              # Google-derived, see §8
 └── tests/                     # empty directory, no content — NOT a test entry point
 ```
+
+Removed from upstream in this fork (do not look for them): `projects/{AppStore,HelloWorld,UserDemo,ZClaw,LaunchWizard,CameraApp,Keyboard-Guide}`, `scripts/debian_packager.py`, `scripts/build_cardputerzero_release_local.sh`, `scripts/cardputer_adb_hotplug.c`, `.github/workflows/launcher-build.yml`, `.github/workflows/launcher-release.yml`, the packaging contract tests (`test_updater_packaging.py`, `test_appstore_packaging.py`, `test_preinstalled_app_packaging.py`), `README_ZH.md`, `README_JA.md`.
 
 ---
 
@@ -83,30 +97,26 @@ launcher/
 # 0. Always inspect workspace state first. This is a shared checkout; others may be editing right now
 git status --short && git branch --show-current && git submodule status
 
-# 1. Fastest local verification: SDL2 simulator (x86_64 host)
+# 1. Produce the Alpine (musl) on-device artifacts — the product path for this fork
+./scripts/build-alpine.sh                 # APPLaunch + Calculator, arm64 musl, in an
+                                          # alpine:3.24 container; tarball in dist-alpine/
+# REPO_HOST=/path/as-the-docker-daemon-sees-it ./scripts/build-alpine.sh
+
+# 2. Fastest local verification without Docker: SDL2 simulator (x86_64 host)
 cd projects/APPLaunch
 export CONFIG_DEFAULT_FILE=linux_x86_sdl2_config_defaults.mk
 scons distclean && scons -j$(nproc)
 cd dist && ./M5CardputerZero-APPLaunch        # needs SDL2 + FreeType
 
-# 2. Produce on-device artifacts: cross-compile to aarch64
-cd projects/APPLaunch
-export CONFIG_DEFAULT_FILE=linux_x86_cross_cp0_config_defaults.mk
-scons distclean && scons -j$(nproc)
-file dist/M5CardputerZero-APPLaunch            # expect ARM aarch64
+# 3. Run tests after changing code (run both; CI runs the second + the menu-order contract)
+sh projects/APPLaunch/tests/run_tests.sh
+sh ext_components/cp0_lvgl/tests/run_tests.sh
 
-# 3. Run tests after changing code (run both; CI only runs the second)
-sh projects/APPLaunch/tests/run_tests.sh          # 42 C++ + 15 Python contracts
-sh ext_components/cp0_lvgl/tests/run_tests.sh     # 85 C++
-
-# 4. Build the .deb (**does not compile anything** — packages the existing dist/)
-python3 scripts/debian_packager.py
-
-# 5. Generate compile_commands.json (for clangd / code navigation)
+# 4. Generate compile_commands.json (for clangd / code navigation)
 cd projects/APPLaunch && bear -- scons -j$(nproc)
 ```
 
-Dependency install is documented in the "编译程序" (Build) section of [`README_ZH.md`](README_ZH.md): `python3 python3-pip build-essential pkg-config libffi-dev libsdl2-dev libfreetype6-dev` plus `pip3 install parse scons requests tqdm setuptools-rust paramiko scp`.
+Build dependencies live inside the container for the Alpine path (see `scripts/build-alpine.sh`). For the host SDL2 path, install: `python3 python3-pip build-essential pkg-config libffi-dev libsdl2-dev libfreetype6-dev` plus `pip3 install parse scons requests tqdm setuptools-rust paramiko scp`. The upstream glibc cross profile (`CardputerZero=y`) still works for RPi-OS-style glibc binaries — **never for the Alpine image**.
 
 ---
 
@@ -118,15 +128,10 @@ Dependency install is documented in the "编译程序" (Build) section of [`READ
 | Project | Purpose | Build | Artifacts | Host SDL2 | Repo nature |
 | --- | --- | --- | --- | --- | --- |
 | **APPLaunch** | Launcher: carousel home, built-in pages, `.desktop` app management | SCons | `M5CardputerZero-APPLaunch` + `APPLaunch/` resource tree | ✅ | plain directory |
-| ZClaw | Chat/config frontend (WS or webhook) | SCons | `ZClaw` + `dist/APPLaunch/` | ✅ | plain directory |
-| LaunchWizard | OOBE first-boot wizard | SCons (GUI) / CMake `ctest --preset dev` (tests) | `LaunchWizard` (CI copies it into `APPLaunch/bin/`) | ✅ | plain directory |
-| HelloWorld / UserDemo | Minimal example / official demo | SCons | `HelloWorld` / `M5CardputerZero-UserDemo` | ✅ | plain directory |
+| Calculator | Calculator — the second binary the Alpine image ships | SCons | `M5CardputerZero-Calculator` | ✅ | **submodule** |
 | CardputerZero-Emulator | Desktop/web device emulator | **CMake** (not SCons) | `cardputer-zero-emu`; web `index.html/js/wasm/data` | ✅ | plain directory (`lib/lvgl` is a submodule) |
-| AppStore | App store (registry→md5→dpkg) | SCons | `M5CardputerZero-AppStore` | ✅ | **submodule** |
-| Calculator | Calculator | SCons | `Calculator` | ✅ | **submodule** |
-| CameraApp | Camera (libcamera ≥ 0.7.2) | CMake presets (the SCons path is unsuitable for x86) | `CameraApp` / `.deb` presets | ⚠️ | body lives here, `main_CameraApp/` is a **submodule** |
-| Keyboard-Guide | Keyboard tutorial | CMake `./bootstrap.sh` | `M5CardputerZero-Keyboard-Guide` | ✅ | **submodule** (uninitialized) |
-| FactoryTest | Historical factory test | **no working entry point** | none | ❌ | untracked leftover, see §10.3 |
+
+Removed with the fork (rows kept upstream): ZClaw, LaunchWizard, HelloWorld/UserDemo, AppStore, CameraApp, Keyboard-Guide, FactoryTest.
 
 ---
 
@@ -179,14 +184,10 @@ cd projects/APPLaunch && bear -- scons -j$(nproc)   # writes ./compile_commands.
 
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
-| `.github/workflows/launcher-build.yml` | push to `master`/`ci/**` (path-filtered), PR, manual | Cross-builds APPLaunch/AppStore/Calculator/LaunchWizard/ZClaw → aggregates → `debian_packager.py` produces the `.deb`; a separate `unit-tests` job runs the `cp0_lvgl` tests |
-| `.github/workflows/launcher-release.yml` | manual | Release publishing (whether prereleases are published automatically varies by branch, see §10.1) |
+| `.github/workflows/alpine-build.yml` | push/PR (path-filtered), manual | Native aarch64 musl build of APPLaunch + Calculator in an `alpine:3.24` container on the arm64 runner; artifacts are the deployable tree; a `unit-tests` job runs the `cp0_lvgl` tests + the settings menu-order contract test |
 | `.github/workflows/emulator-build.yml` | push/PR (paths such as `projects/CardputerZero-Emulator/**`) | 4 jobs: macos / linux / windows / web |
 
-Release pipeline (local equivalent): `scripts/build_cardputerzero_release_local.sh <ver> m5stack1`
-→ cross-build the five projects → aggregate `dist/` → build `cardputer-adb-hotplug` → `scripts/debian_packager.py` → `applaunch_<ver>-m5stack1_arm64.deb`.
-
-**Note**: `debian_packager.py` only packages the **already-existing** `projects/APPLaunch/dist/APPLaunch`; it will not compile for you. The claim in `09-*.md` that packaging prefers the source tree is out of date.
+The fork has **no release channel and no `.deb`** — the cardputer-zero-alpine image build consumes the artifact tree directly. Upstream's `.deb` pipeline (`launcher-build.yml` + `launcher-release.yml` + `debian_packager.py`) existed only for its systemd/dpkg update flow and was removed with the fork.
 
 ### 4.5 Other build notes
 
@@ -203,14 +204,15 @@ Release pipeline (local equivalent): `scripts/build_cardputerzero_release_local.
 
 ```
 main/src/main.cpp  main()
-  ├─ system(bash_init)                    # unzip /var/template.zip → ~/Downloads
   ├─ options.after_resource_init          # backlight to 0 → restore previous brightness
   ├─ options.setup   → launcher_ui::init() [ui/ui.cpp:36] + ui_screensaver_init()
   └─ cp0_lvgl_run(options)                # ★ the real main loop
         [ext_components/cp0_lvgl/src/cp0_lvgl_app_runner.cpp  cp0_lvgl_run()]
         lv_init() → cp0_lvgl_init() → setup() → first frame →
-        while: ms = lv_timer_handler(); semaphore wait for ms  → teardown()
+        while: ms = lv_timer_handler(); condvar wait for ms  → teardown()
 ```
+
+- (Alpine fork: upstream's `system(bash_init)` demo unpack at boot was removed with the demo apps; the LVGL loop's wake primitive is now the portable `std::condition_variable` + `pending_wakes` path — glibc's `sem_clockwait` does not exist on musl.)
 
 - **The main loop is not under `projects/APPLaunch/main/`**; it lives in `ext_components/cp0_lvgl/src/cp0_lvgl_app_runner.cpp`.
 - To wake the UI from another thread use `cp0_lvgl_wake()`. **Never** spin up your own thread to touch LVGL.
@@ -497,17 +499,16 @@ docs/launcher工程详细说明.md / launcher-project-guide.md / launcher-projec
 
 | I want to… | Read first | Then work on |
 | --- | --- | --- |
-| Get it running on the host | `README_ZH.md` build section + §2 of this file | `projects/APPLaunch` with `linux_x86_sdl2_config_defaults.mk` |
-| Produce device/release artifacts | §4.4 of this file + `docs/.../09-*.md` (mind the outdated parts) | `scripts/build_cardputerzero_release_local.sh` → `scripts/debian_packager.py` |
+| Get it running on the host | `README.md` build section + §2 of this file | `projects/APPLaunch` with `linux_x86_sdl2_config_defaults.mk` |
+| Produce Alpine device artifacts | §2 + §4.4 of this file | `./scripts/build-alpine.sh` (artifact consumed by the cardputer-zero-alpine image build) |
 | Add a home-screen app (built-in page) | §6.2 of this file + `docs/.../10-extension-development-guide.md` | `main/ui/page_app/` + `builtin_app_registry.cpp` |
 | Add an external app (`.desktop`) | §6.3 of this file | `projects/APPLaunch/APPLaunch/applications/` |
 | Change the carousel / home UI | `docs/.../03-ui-framework-and-home-carousel.md` | `main/ui/ui_launch_page*.cpp`, `animation/` |
 | Change the settings page | §5.3 of this file, "Settings menu structure" | `main/ui/settings/` |
 | Change keys/input | `docs/.../07-input-system-and-key-mapping.md` | `main/ui/ui_launch_page_input.cpp`, `model/global_hint_policy.cpp` |
 | Change platform capabilities (audio/network/process/config…) | `ext_components/cp0_lvgl/AGENTS.md` + `docs/cp0_lvgl.md` | `ext_components/cp0_lvgl/`, syncing the trilingual docs + contracts + tests |
-| Change the camera | `docs/current-implementation-and-components.md` | `projects/CameraApp/` (note `main_CameraApp/` is a submodule) |
 | Change the emulator | `projects/CardputerZero-Emulator/` | CMake, not SCons |
-| Debug a blank screen / boot failure | `docs/.../11-debugging-and-troubleshooting.md` | `journalctl --user -u APPLaunch.service -f` |
+| Debug a blank screen / boot failure on the device | `docs/.../11-debugging-and-troubleshooting.md` (systemd/journalctl parts are upstream-only) | OpenRC: `rc-service applaunch status`, `/var/log/applaunch.log` |
 | Debug an external app that never returns | §6.1 of this file + `tests/test_external_framebuffer_ownership.py` | `main/ui/launch.cpp` |
 
 ---
@@ -528,11 +529,10 @@ docs/launcher工程详细说明.md / launcher-project-guide.md / launcher-projec
 
 ### Commit boundaries (submodules)
 
-`SDK`, `projects/AppStore`, `projects/Calculator`, `projects/CameraApp/main_CameraApp`, `projects/Keyboard-Guide/main_Keyboard-Guide`, and `projects/CardputerZero-Emulator/lib/lvgl` are **git submodules**:
+`SDK`, `projects/Calculator`, and `projects/CardputerZero-Emulator/lib/lvgl` are the fork's **git submodules** (upstream also had AppStore / CameraApp / Keyboard-Guide — removed here):
 
 - changes inside them must be committed to **their own upstream repositories**; `git add` in the parent repo only records a gitlink;
-- an `M <submodule>` entry here usually just means "pointer drift" and does not indicate a substantive change;
-- `projects/Keyboard-Guide/main_Keyboard-Guide` may be empty in the current checkout (uninitialized); run `git submodule update --init` if you need it.
+- an `M <submodule>` entry here usually just means "pointer drift" and does not indicate a substantive change — do not commit it casually.
 
 ### How `ext_components` is consumed
 
