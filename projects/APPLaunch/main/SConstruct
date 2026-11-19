@@ -158,6 +158,14 @@ if ('CONFIG_APPLAUNCH_LINUX_X86_SDL2' in os.environ or
 if 'CONFIG_APPLAUNCH_LINUX_CP0' in os.environ:
     REQUIREMENTS += ['cp0_lvgl']
     REQUIREMENTS += ['input', 'xkbcommon', 'udev']
+    # Alpine fork: native device builds need FreeType's header path for
+    # LVGL's FreeType integration. Cross builds take it from the static-lib
+    # sysroot and SDL2 host builds inject it in their own branch above;
+    # the native profile had no source for -I.../freetype2 at all, so
+    # lv_draw_sw_letter.c (ft2build.h) failed to compile on a plain native
+    # toolchain. System freetype provides it here.
+    lvgl_component['DEFINITIONS'] += pkg_config_cflags("freetype2")
+    lvgl_component['REQUIREMENTS'] += pkg_config_ldflags("freetype2")
 
 if 'CONFIG_APPLAUNCH_MAC_CROSS_CP0' in os.environ:
     lvgl_component['DEFINITIONS'] += ['-D_REENTRANT']

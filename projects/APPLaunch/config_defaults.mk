@@ -96,7 +96,12 @@ CONFIG_V9_5_LV_DRAW_THREAD_PRIO=3
 CONFIG_MINIAUDIO_COMPONENT_ENABLED=y
 CONFIG_SIGSLOT_COMPONENT_ENABLED=y
 CONFIG_CP0_LVGL_COMPONENT_ENABLED=y
-CONFIG_CP0_LVGL_INIT_LORA=y
+# Alpine fork: LoRa service disabled, matching the shipping cross profile
+# (linux_x86_cross_cp0_config_defaults.mk). The CardputerZero carries no
+# LoRa radio, and the old combination here (service on + RadioLib component
+# off) never compiled: cp0_lvgl_lara.cpp includes RadioLib.h, which is only
+# provided when CONFIG_RADIOLIB_COMPONENT_ENABLED=y.
+# CONFIG_CP0_LVGL_INIT_LORA=y
 CONFIG_CP0_LVGL_INIT_FILESYSTEM=y
 CONFIG_CP0_LVGL_INIT_CONFIG=y
 CONFIG_CP0_LVGL_INIT_PTY=y
