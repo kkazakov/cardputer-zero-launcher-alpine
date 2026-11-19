@@ -2,16 +2,17 @@
 # deploy/alpine/applaunch.initd — OpenRC service for APPLaunch on Alpine.
 #
 # The upstream deployment runs APPLaunch as a systemd user service on
-# Raspberry Pi OS. On Alpine (OpenRC) the launcher runs as the root user of
-# the console image: this is a single-user pocket device, the stock sudo /
-# polkit approval layer does not exist here, and every privileged surface
-# the launcher touches (rfkill, wpa_ctrl over the NetworkManager-managed
-# supplicant, ALSA mixer state, i2c, /dev/fb*, settimeofday) is expected to
-# work without a prompt.
+# Raspberry Pi OS. On Alpine (OpenRC) the launcher runs as the
+# unprivileged `cpz` user: the image adds cpz to video/input/audio/i2c/
+# seat and grants passwordless sudo, so the framebuffer, keypad, ALSA
+# mixer, i2c chips (battery/RTC/backlight) and the privileged actions
+# (RTC write, power, the on-demand HDMI session) all work exactly like
+# the stock polkit flow — without running the whole UI as root.
 #
-# Console ownership: the internal LCD (fb_st7789v fbtft, /dev/fb1) belongs
-# to the launcher; the kernel console stays on HDMI (fbcon=map:0). Do NOT
-# run a getty on the panel and do NOT blank fbcon while the launcher runs
+# Console ownership: the internal LCD (fb_st7789v fbtft, /dev/fb1)
+# belongs to the launcher; the kernel console is serial-only and the
+# HDMI output stays dark until the desktop session starts. Do NOT map
+# fbcon onto the panel and do NOT blank fbcon while the launcher runs
 # (fbcon blanking drives the fbtft backlight off).
 #
 # Resource root is fixed at /usr/share/APPLaunch (kAppRoot in
@@ -21,12 +22,10 @@ description="M5CardputerZero APPLaunch launcher UI"
 
 command="/usr/share/APPLaunch/bin/M5CardputerZero-APPLaunch"
 command_background="yes"
+command_user="cpz:cpz"
 pidfile="/run/applaunch.pid"
 directory="/usr/share/APPLaunch"
 
-# The launcher reads the raw evdev keypad directly; stray keystrokes would
-# otherwise land on the active VT's getty and repaint the kernel console.
-# Set CONSOLE to a VT that no getty uses while the launcher is up.
 output_log="/var/log/applaunch.log"
 error_log="/var/log/applaunch.log"
 
@@ -34,13 +33,14 @@ depend() {
     need localmount
     # udev settles /dev/input/by-path for the keypad; dbus + bluetooth
     # serve the launcher's Bluetooth settings; NetworkManager owns wlan0.
-    after bootmisc udev dbus networkmanager bluetooth cpz-audio cpz-leds
+    after bootmisc udev dbus networkmanager bluetooth
 }
 
 start_pre() {
     checkpath -f -m 0644 /var/log/applaunch.log
-    # /var/lib/applaunch: launcher settings + config.json live here.
-    checkpath -d -m 0755 /var/lib/applaunch
+    # /var/lib/applaunch: launcher settings, config.json and the HDMI
+    # desktop preference. Owned by cpz (the launcher writes it).
+    checkpath -d -m 0755 -o cpz -g cpz /var/lib/applaunch
     # The framebuffer auto-detection greps /proc/fb for the ST7789 fbtft
     # device; fail fast with a readable message if the panel is absent.
     if ! grep -q st7789 /proc/fb 2>/dev/null; then

@@ -40,9 +40,23 @@ surface is deliberately smaller:
   - *Speaker* (volume keys and the page) — works over ALSA: the port adds
     an `amixer` DACL/DACR fallback to the PulseAudio mixer path, which is
     the only backend the Alpine image has.
-- **Home screen** carries Settings, CLI, SSH, IP Panel and Calculator; the
-  upstream demo games (Snake, Tank), the Store and the Python terminal are
-  not part of this fork's product.
+- **Home screen** carries Settings, CLI, SSH, IP Panel, Calculator and the
+  **HDMI** desktop toggle; the upstream demo games (Snake, Tank), the Store
+  and the Python terminal are not part of this fork's product. The default
+  background is the fork's Alpine wallpaper (`alpine_wallpaper.png`,
+  320x170, matching the panel).
+- **HDMI desktop toggle** — an in-process page (`ui_app_hdmi`) that starts
+  and stops the on-demand HDMI session (`cpz-desktop start|stop`) with a
+  single switch: status is polled from the real session (sway), the choice
+  is persisted in `/var/lib/applaunch/hdmi-desktop` and re-applied at boot
+  by `/etc/local.d/cpz-hdmi-boot.start`. HDMI stays dark until it starts.
+- **Runs as the unprivileged `cpz` user** on the Alpine image (OpenRC
+  `command_user="cpz:cpz"`): cpz is in `video`/`input`/`audio`/`i2c`/`seat`
+  and has passwordless sudo, so the panel, keypad, ALSA mixer, BME/RTC i2c
+  chips, RTC writes, power actions and the desktop session all work without
+  running the UI as root. `cp0_lvgl`'s power commands now pick `systemctl`
+  when present and the OpenRC `reboot`/`poweroff` verbs (via `sudo -n`)
+  otherwise — upstream's hardwired `systemctl` was a no-op on Alpine.
 
 Platform ports (the interesting bits):
 
@@ -125,15 +139,18 @@ rc-service applaunch start
 ```
 
 `deploy/alpine/runtime-packages.txt` lists the Alpine packages the binary
-and its services need. The launcher runs as root on this single-user device;
-the upstream sudo/polkit approval layer has no Alpine counterpart, and every
-privileged surface (rfkill, nmcli, ALSA, i²c, /dev/fb, settimeofday) is
-expected to work without prompts.
+and its services need. The launcher runs as the unprivileged **`cpz`**
+user: the image puts cpz in `video`/`input`/`audio`/`i2c`/`seat` and
+grants passwordless sudo, so the panel, keypad, ALSA mixer, i²c chips,
+RTC writes, power actions and the on-demand session work like upstream's
+polkit flow — without running the UI as root.
 
-Console layout on the device: the internal LCD is owned by the launcher
-while the kernel console stays on HDMI (`fbcon=map:0`). Do not run a getty
-on the panel and do not blank fbcon while the launcher is up — fbcon
-blanking turns the fbtft backlight off.
+Console layout on the device: the internal LCD is owned by the launcher;
+there is no VT getty and no kernel console on the VTs, so **HDMI stays
+dark until the desktop session starts** (`cpz-desktop`/the HDMI app).
+Serial is the local rescue console. Do not run a getty on the panel and
+do not blank fbcon while the launcher is up — fbcon blanking turns the
+fbtft backlight off.
 
 The cardputer-zero-alpine image build consumes all of this automatically via
 `build/25-launcher.sh`.

@@ -10,7 +10,7 @@
 #   export LV_LINUX_FBDEV_DEVICE=/dev/fb1
 #   export LV_LINUX_KEYBOARD_DEVICE=/dev/input/by-path/platform-3f804000.i2c-event
 
-# The launcher runs privileged; HOME anchors ~/Downloads and the
-# ensure_directory ownership logic (SUDO_UID passthrough is unused here).
-HOME=/root
+# v0.18.0: the launcher runs as cpz; HOME anchors ~/Downloads, the CLI
+# terminal's rc files and the config paths.
+HOME=/home/cpz
 export HOME

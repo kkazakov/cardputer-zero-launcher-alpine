@@ -24,8 +24,15 @@ Related files (all worth a quick scan):
 > branch** — sync by fast-forwarding `master` and rebasing `alpine` on it.
 > The fork removes: the App Store (project + home entry), demo/example
 > projects (HelloWorld, UserDemo, ZClaw, LaunchWizard, CameraApp,
-> Keyboard-Guide), the Python built-in entry, the `.deb`/systemd packaging
-> pipeline, and the non-English READMEs. The Alpine build is
+> Keyboard-Guide), the Python built-in entry, the Snake/Tank demo games,
+> the `.deb`/systemd packaging pipeline, and the non-English READMEs.
+> It adds: the **HDMI desktop toggle** page (`page_app/ui_app_hdmi.*` —
+> starts/stops `cpz-desktop`, persists `/var/lib/applaunch/hdmi-desktop`,
+> re-applied at boot by the image), the Alpine wallpaper
+> (`share/images/alpine_wallpaper.png`, applied in
+> `ui/launcher_ui_runtime.cpp`), and the cpz-user deployment (OpenRC
+> `command_user="cpz:cpz"`, passwordless sudo, video/input/audio/i2c/seat
+> groups). The Alpine build is
 > `scripts/build-alpine.sh` (native arm64 musl build inside an
 > alpine:3.24 container — never use the glibc cross profile for this
 > target). OpenRC units live in `deploy/alpine/`. Keep the `alpine` diff
