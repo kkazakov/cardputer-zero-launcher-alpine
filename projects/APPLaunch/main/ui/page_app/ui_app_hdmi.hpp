@@ -8,6 +8,8 @@
 
 #include "../launcher_ui_app_page.hpp"
 
+#include <cstdint>
+
 // ============================================================
 //  HDMI desktop toggle  UIHdmiPage
 //  Screen: 320 x 170  (top bar 20px, ui_APP_Container 320x150)
@@ -41,6 +43,11 @@ private:
     lv_timer_t *poll_timer_ = nullptr;
     bool last_desired_ = false;
     bool last_running_ = false;
+    // A start/stop request is in flight: the status text says
+    // "Starting…/Stopping…" and a timeout falls back to the real state
+    // instead of lying forever.
+    bool pending_ = false;
+    uint32_t pending_at_ = 0;
 
     void build_ui();
     void apply_ui_state(bool running);

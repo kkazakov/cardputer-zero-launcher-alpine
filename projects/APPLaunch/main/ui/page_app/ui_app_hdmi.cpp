@@ -29,7 +29,10 @@ constexpr uint32_t kTrack = 0x24354A;
 
 void run_background(const std::list<std::string> &argv)
 {
-    std::list<std::string> request = {"RunArgv", "true"};
+    // RunArgv's second argument is the *background* flag parsed by
+    // cp0_process_api_contract::parse_bool, which accepts only "0"/"1" —
+    // "true" makes the whole command invalid and nothing runs.
+    std::list<std::string> request = {"RunArgv", "1"};
     request.insert(request.end(), argv.begin(), argv.end());
     cp0_signal_process_api(request, [](int, std::string) {});
 }
@@ -237,7 +240,20 @@ void UIHdmiPage::poll_timer_cb(lv_timer_t *timer)
     const bool running = self->desktop_running();
     if (running != self->last_running_) {
         self->last_running_ = running;
+        self->pending_ = false;
         self->apply_ui_state(running);
+        return;
+    }
+    if (self->pending_ && lv_tick_elaps(self->pending_at_) > 12000) {
+        // The request produced no session change: say so instead of
+        // leaving "Starting…" on screen forever, and re-sync the switch
+        // and the boot preference to the real state.
+        self->pending_ = false;
+        self->set_desired(running, false);
+        self->apply_ui_state(running);
+        if (self->status_label_)
+            lv_label_set_text(self->status_label_,
+                              "No change — see /var/log/applaunch.log");
     }
 }
 
@@ -247,6 +263,8 @@ void UIHdmiPage::switch_event_cb(lv_event_t *event)
     if (!self || !self->switch_) return;
     const bool on = lv_obj_has_state(self->switch_, LV_STATE_CHECKED);
     self->set_desired(on, true);
+    self->pending_ = true;
+    self->pending_at_ = lv_tick_get();
     if (self->status_label_)
         lv_label_set_text(self->status_label_, on ? "Starting…" : "Stopping…");
 }
