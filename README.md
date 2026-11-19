@@ -37,6 +37,12 @@ surface is deliberately smaller:
     the existing *Write RTC?* step persists it to the RX8130.
   - *Network Time* — reports unavailable on Alpine (no `timedate1`);
     keep the clock via the manual set or NTP configured in the base image.
+  - *Speaker* (volume keys and the page) — works over ALSA: the port adds
+    an `amixer` DACL/DACR fallback to the PulseAudio mixer path, which is
+    the only backend the Alpine image has.
+- **Home screen** carries Settings, CLI, SSH, IP Panel and Calculator; the
+  upstream demo games (Snake, Tank), the Store and the Python terminal are
+  not part of this fork's product.
 
 Platform ports (the interesting bits):
 
