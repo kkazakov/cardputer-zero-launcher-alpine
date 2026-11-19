@@ -119,12 +119,20 @@ def test_launcher_settings_use_builtin_and_release_preinstalled_apps():
     assert "launcher_builtin_app_registry_entries(&count)" not in SETTINGS_ADAPTER
     assert "launcher::is_launcher_settings_origin(descriptor.origin)" in SETTINGS_ADAPTER
     assert "launcher::is_protected_launcher_app(descriptor.config_key)" in SETTINGS_ADAPTER
-    assert '{"Python", "python_100.png", "app_Python", true, false}' in BUILTIN_REGISTRY
+    # Alpine fork: the Store and Python built-in entries are gone; the CLI
+    # terminal and the remaining built-ins stay toggleable from Launcher.
     assert '{"Snake", "game_100.png", "app_Game", true, false}' in BUILTIN_REGISTRY
-    assert (
-        "zclaw.desktop\tZClaw\tshare/images/claw_100.png\t"
-        "/usr/share/APPLaunch/bin/ZClaw\tfalse\ttrue"
-    ) in PREINSTALLED_MANIFEST
+    assert '{"Calculator", "math_100.png", "app_Math", true, false}' in BUILTIN_REGISTRY
+    for removed in ('{"Store", "store_100.png"', '{"Python", "python_100.png"'):
+        assert removed not in BUILTIN_REGISTRY
+
+
+def test_alpine_platform_gating_keeps_upstream_entries_compiled():
+    # The updater and ADB pages stay compiled for upstream parity but must
+    # be gated behind the Alpine detection so they never appear on Alpine.
+    assert "launcher_platform_is_alpine()" in SETTINGS_PAGE
+    assert 'access("/etc/alpine-release", F_OK)' in SETTINGS_PAGE
+    assert SETTINGS_PAGE.count("if (!launcher_platform_is_alpine())") == 2
 
 
 def test_system_replaces_about_with_requested_entries():
@@ -153,4 +161,5 @@ if __name__ == "__main__":
     test_ethernet_is_a_submenu_with_enable_and_existing_info_page()
     test_ext_port_order_and_hardware_mappings()
     test_launcher_settings_use_builtin_and_release_preinstalled_apps()
+    test_alpine_platform_gating_keeps_upstream_entries_compiled()
     test_system_replaces_about_with_requested_entries()

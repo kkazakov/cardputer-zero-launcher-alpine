@@ -41,9 +41,20 @@
 #include <string>
 #include <system_error>
 #include <tuple>
+#include <unistd.h>
 #include <utility>
 
 namespace {
+
+// Alpine fork: a few settings entries only make sense on the upstream
+// Raspberry Pi OS deployment (systemd/dpkg updaters, the USB gadget ADB
+// helper). On Alpine those integrations do not exist, so the entries are
+// hidden rather than shipping dead pages that fail at every tap. The pages
+// themselves stay compiled for upstream parity.
+bool launcher_platform_is_alpine()
+{
+    return access("/etc/alpine-release", F_OK) == 0;
+}
 
 bool wifi_power_state   = false;
 bool wifi_power_pending = false;
@@ -688,7 +699,7 @@ void UISettingTreePage::create_page_detail()
     mode_tree.append_child(root, SettingEntry{"Launcher", roller_page_factory});
 #endif
 
-    {
+    if (!launcher_platform_is_alpine()) {
         NodeIter developer = mode_tree.append_child(root, SettingEntry{"Developer", roller_page_factory});
         SettingEntry adb_entry{"ADB", LvSettingAdbGuidePage3::toggle_setting, true};
         adb_entry.status_read_policy = SettingStatusReadPolicy::Direct;
@@ -742,8 +753,12 @@ void UISettingTreePage::create_page_detail()
 
     {
         NodeIter system = mode_tree.append_child(root, SettingEntry{"System", roller_page_factory});
-        mode_tree.append_child(system,
-                               SettingEntry{"Software", settings_update_page_factory, PageType::FullCustom});
+        // Alpine fork: the Software updater page drives the systemd/dpkg
+        // update channel of the upstream image; hidden on Alpine.
+        if (!launcher_platform_is_alpine()) {
+            mode_tree.append_child(system,
+                                   SettingEntry{"Software", settings_update_page_factory, PageType::FullCustom});
+        }
         mode_tree.append_child(system,
                                SettingEntry{"Storage", settings_storage_page_factory, PageType::FullCustom});
         mode_tree.append_child(system,
