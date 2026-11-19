@@ -488,10 +488,23 @@ fi
     "$root/tests/test_keyboard_contract.c" -o "$binary"
 "$binary"
 
-"${CC:-cc}" -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=thread -g \
-    -I"$root/include" "$root/src/cp0_esc_state.c" \
-    "$root/tests/test_esc_state_tsan.c" -o "$binary"
-TSAN_OPTIONS="halt_on_error=1" "$binary"
+# ThreadSanitizer stress build of the ESC-state contract. Alpine fork:
+# musl aarch64 toolchains ship no libtsan — probe the compiler and skip
+# with a message instead of failing the whole suite (the non-tsan
+# test_esc_state contract above still runs everywhere).
+if ${CC:-cc} -fsanitize=thread -x c -o "$build_dir/tsan_probe" - <<'EOF' 2>/dev/null
+int main(void) { return 0; }
+EOF
+then
+    rm -f "$build_dir/tsan_probe"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=thread -g \
+        -I"$root/include" "$root/src/cp0_esc_state.c" \
+        "$root/tests/test_esc_state_tsan.c" -o "$binary"
+    TSAN_OPTIONS="halt_on_error=1" "$binary"
+else
+    rm -f "$build_dir/tsan_probe"
+    echo "skip: ${CC:-cc} has no thread sanitizer (e.g. musl aarch64)"
+fi
 
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror \
     -I"$root/include" "$root/tests/test_keyboard_input_context.cpp" -o "$binary"

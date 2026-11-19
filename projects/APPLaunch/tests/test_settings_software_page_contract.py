@@ -94,30 +94,8 @@ assert "parse_app_update_warning" in MODEL
 assert "read_app_update_warnings" in MODEL
 assert "app_update_failure_label" in MODEL
 
-# The privileged updater keeps the same package allowlist as the page.  A
-# package added to one list but not the other would silently stop updating.
-PACKAGER = (ROOT.parents[1] / "scripts/debian_packager.py").read_text(
-    encoding="utf-8"
-)
-for package in PACKAGES:
-    assert package in PACKAGER, f"missing updater package: {package}"
-assert "APP_UPDATE_SPECS" in PACKAGER
-
-import re
-
-model_specs = {
-    (package, repo, prefix)
-    for _short, package, repo, prefix in re.findall(
-        r'\{"([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\}',
-        MODEL,
-    )
-}
-spec_block = PACKAGER.split("APP_UPDATE_SPECS = (", 1)[1].split("\n)", 1)[0]
-packager_specs = {
-    (package, repo, prefix)
-    for package, repo, prefix in re.findall(
-        r'\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)',
-        spec_block,
-    )
-}
-assert model_specs == packager_specs, (model_specs, packager_specs)
+# Alpine fork: the .deb updater pipeline (debian_packager.py +
+# APP_UPDATE_SPECS cross-check) was removed with the RPi-OS packaging
+# flow. The Software page itself stays compiled for upstream parity and
+# is gated at runtime by launcher_platform_is_alpine(); the page/model
+# structure assertions above keep guarding it.
