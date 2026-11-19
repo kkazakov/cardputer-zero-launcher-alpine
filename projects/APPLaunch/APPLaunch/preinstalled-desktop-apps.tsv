@@ -1,2 +1,3 @@
 # filename<TAB>Name<TAB>Icon<TAB>Exec<TAB>Terminal<TAB>Sysplause
-zclaw.desktop	ZClaw	share/images/claw_100.png	/usr/share/APPLaunch/bin/ZClaw	false	true
+# Alpine fork: the ZClaw product app is not part of the Alpine image; the
+# manifest ships empty and product apps can be added by later images.

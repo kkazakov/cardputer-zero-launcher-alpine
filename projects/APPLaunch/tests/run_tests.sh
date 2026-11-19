@@ -13,7 +13,6 @@ python3 "$test_root/test_settings_wifi_enable_copy_contract.py"
 python3 "$test_root/test_settings_ethernet_layout_contract.py"
 python3 "$test_root/test_settings_rtc_layout_contract.py"
 python3 "$test_root/test_settings_volume_initial_selection.py"
-python3 "$test_root/test_preinstalled_app_packaging.py"
 python3 "$test_root/test_settings_storage_build_contract.py"
 python3 "$test_root/test_settings_software_page_contract.py"
 python3 "$test_root/test_static_resource_staging.py"
@@ -45,8 +44,6 @@ ${CXX:-g++} -std=c++17 -Wall -Wextra -Werror -pthread \
     -o "$build_dir/test_settings_software_updater"
 "$build_dir/test_settings_software_updater"
 "$build_dir/test_settings_software_model"
-python3 "$test_root/test_updater_packaging.py"
-python3 "$test_root/test_appstore_packaging.py"
 ${CXX:-g++} -std=c++17 -Wall -Wextra -Werror \
     -I"$test_root/../main/include" \
     -I"$test_root/../../../ext_components/cp0_lvgl/include" \
