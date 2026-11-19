@@ -24,8 +24,31 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <unistd.h>
 #include <vector>
 #include <utility>
+
+namespace {
+
+// Alpine fork: poweroff/reboot used to be hardwired to systemctl, which
+// does not exist on OpenRC. Prefer systemctl when it is present (stock
+// RPi OS / upstream behaviour); otherwise use the sysvinit verbs, via
+// sudo when the launcher runs unprivileged (the Alpine image gives cpz
+// NOPASSWD sudo exactly for this).
+bool program_exists(const char *path)
+{
+    return path && access(path, X_OK) == 0;
+}
+
+std::vector<std::string> power_command(const char *systemctl_verb, const char *sysv_verb)
+{
+    if (program_exists("/usr/bin/systemctl") || program_exists("/bin/systemctl"))
+        return {"systemctl", systemctl_verb, "-i"};
+    if (geteuid() == 0) return {sysv_verb};
+    return {"sudo", "-n", sysv_verb};
+}
+
+} // namespace
 
 class ProcessSystem
 {
@@ -154,7 +177,7 @@ public:
 #else
         std::printf("[CP0] shutdown\n");
         cp0_backlight_write(0);
-        const std::vector<std::string> argv = {"systemctl", "poweroff", "-i"};
+        const std::vector<std::string> argv = power_command("poweroff", "poweroff");
         return cp0_process_commands::run_argv(argv, false);
 #endif
     }
@@ -166,7 +189,7 @@ public:
         std::exit(0);
 #else
         std::printf("[CP0] reboot\n");
-        const std::vector<std::string> argv = {"systemctl", "reboot", "-i"};
+        const std::vector<std::string> argv = power_command("reboot", "reboot");
         cp0_process_commands::run_argv(argv, true);
 #endif
     }
