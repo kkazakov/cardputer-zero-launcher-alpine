@@ -15,23 +15,23 @@
 #include "hal_lvgl_bsp.h"
 
 #include <chrono>
-#include <cerrno>
 #include <condition_variable>
 #include <cstdio>
 #include <mutex>
-#if !defined(__APPLE__)
-#include <semaphore.h>
-#endif
 #include <time.h>
 
 namespace {
 
-#if defined(__APPLE__)
+// Alpine fork: the wake primitive is the condition-variable + pending_wakes
+// counter on every platform. The previous Linux path used sem_clockwait(),
+// a glibc extension that musl does not provide, so the Alpine (musl) build
+// failed to compile. The condvar path is POSIX-portable, keeps its deadline
+// on the steady clock (std::condition_variable::wait_for) so wall-clock
+// jumps cannot stall the LVGL loop, and preserves the semaphore's wake
+// counting (each post increments pending_wakes; every wait consumes one).
+// It is also the exact code path macOS builds have used all along.
 std::condition_variable lvgl_wake;
 size_t pending_wakes = 0;
-#else
-sem_t lvgl_sem;
-#endif
 std::mutex runner_mutex;
 cp0::RunnerLifetime runner_lifetime;
 bool semaphore_ready = false;
@@ -40,12 +40,8 @@ void post_lvgl_semaphore()
 {
     std::lock_guard<std::mutex> lock(runner_mutex);
     if (!semaphore_ready) return;
-#if defined(__APPLE__)
     ++pending_wakes;
     lvgl_wake.notify_one();
-#else
-    sem_post(&lvgl_sem);
-#endif
 }
 
 void resume_cb(void *)
@@ -55,48 +51,20 @@ void resume_cb(void *)
 
 void wait_for_lvgl(uint32_t milliseconds)
 {
-#if defined(__APPLE__)
     std::unique_lock<std::mutex> lock(runner_mutex);
     lvgl_wake.wait_for(lock, std::chrono::milliseconds(milliseconds), [] {
         return pending_wakes != 0 || !semaphore_ready;
     });
     if (pending_wakes != 0) --pending_wakes;
-#else
-    struct timespec deadline;
-#if defined(__linux__)
-    clock_gettime(CLOCK_MONOTONIC, &deadline);
-#else
-    clock_gettime(CLOCK_REALTIME, &deadline);
-#endif
-    deadline.tv_nsec += (milliseconds % 1000) * 1000000;
-    deadline.tv_sec += milliseconds / 1000 + deadline.tv_nsec / 1000000000;
-    deadline.tv_nsec %= 1000000000;
-
-    int result;
-    do {
-#if defined(__linux__)
-        result = sem_clockwait(&lvgl_sem, CLOCK_MONOTONIC, &deadline);
-#else
-        result = sem_timedwait(&lvgl_sem, &deadline);
-#endif
-    } while (result != 0 && errno == EINTR);
-#endif
 }
 
 void wait_for_lvgl()
 {
-#if defined(__APPLE__)
     std::unique_lock<std::mutex> lock(runner_mutex);
     lvgl_wake.wait(lock, [] {
         return pending_wakes != 0 || !semaphore_ready;
     });
     if (pending_wakes != 0) --pending_wakes;
-#else
-    int result;
-    do {
-        result = sem_wait(&lvgl_sem);
-    } while (result != 0 && errno == EINTR);
-#endif
 }
 
 void stop_audio() noexcept
@@ -156,14 +124,7 @@ int cp0_lvgl_run(Cp0LvglRunOptions options)
             std::fprintf(stderr, "cp0_lvgl: runner supports one run per process\n");
             return 1;
         }
-#if defined(__APPLE__)
         pending_wakes = 0;
-#else
-        if (sem_init(&lvgl_sem, 0, 0) != 0) {
-            runner_lifetime.initialization_failed();
-            return 1;
-        }
-#endif
         semaphore_ready = true;
     }
 
@@ -189,12 +150,8 @@ int cp0_lvgl_run(Cp0LvglRunOptions options)
             deinit_input, deinit_wifi, stop_lora, deinit_battery, lv_deinit);
         std::lock_guard<std::mutex> lock(runner_mutex);
         semaphore_ready = false;
-#if defined(__APPLE__)
         pending_wakes = 0;
         lvgl_wake.notify_all();
-#else
-        sem_destroy(&lvgl_sem);
-#endif
         runner_lifetime.finish();
         return teardown_failed;
     };
