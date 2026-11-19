@@ -28,9 +28,10 @@ Related files (all worth a quick scan):
 > the `.deb`/systemd packaging pipeline, and the non-English READMEs.
 > It adds: the **HDMI desktop toggle** page (`page_app/ui_app_hdmi.*` —
 > starts/stops `cpz-desktop`, persists `/var/lib/applaunch/hdmi-desktop`,
-> re-applied at boot by the image), the Alpine wallpaper
-> (`share/images/alpine_wallpaper.png`, applied in
-> `ui/launcher_ui_runtime.cpp`), and the cpz-user deployment (OpenRC
+> re-applied at boot by the image), the Alpine lock-screen artwork
+> (`share/images/lockscreen.png`, 320x150 — replaces the stock
+> wallpaper; the home screen keeps its stock background), and the
+> cpz-user deployment (OpenRC
 > `command_user="cpz:cpz"`, passwordless sudo, video/input/audio/i2c/seat
 > groups). The Alpine build is
 > `scripts/build-alpine.sh` (native arm64 musl build inside an

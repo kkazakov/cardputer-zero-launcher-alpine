@@ -42,9 +42,9 @@ surface is deliberately smaller:
     the only backend the Alpine image has.
 - **Home screen** carries Settings, CLI, SSH, IP Panel, Calculator and the
   **HDMI** desktop toggle; the upstream demo games (Snake, Tank), the Store
-  and the Python terminal are not part of this fork's product. The default
-  background is the fork's Alpine wallpaper (`alpine_wallpaper.png`,
-  320x170, matching the panel).
+  and the Python terminal are not part of this fork's product. The home
+  background stays the stock one; the fork's Alpine artwork lives on the
+  **lock screen** (`lockscreen.png`, 320x150, drawn under the lock clock).
 - **HDMI desktop toggle** — an in-process page (`ui_app_hdmi`) that starts
   and stops the on-demand HDMI session (`cpz-desktop start|stop`) with a
   single switch: status is polled from the real session (sway), the choice
