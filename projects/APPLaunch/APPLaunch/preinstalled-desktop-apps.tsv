@@ -1,3 +1,6 @@
 # filename<TAB>Name<TAB>Icon<TAB>Exec<TAB>Terminal<TAB>Sysplause
-# Alpine fork: the ZClaw product app is not part of the Alpine image; the
-# manifest ships empty and product apps can be added by later images.
+# Alpine fork: product apps shipped by the image. Files and Camera are part
+# of the v0.20.0 image; keeping them here marks them Preinstalled so they
+# are enabled by default and managed from Settings -> Launcher.
+files.desktop	Files	share/images/files.png	/usr/local/bin/cpz-files	false	false
+camera_app.desktop	Camera	share/images/camera1.png	/usr/share/APPLaunch/bin/camera_app	false	false
