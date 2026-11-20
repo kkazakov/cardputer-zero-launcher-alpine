@@ -33,13 +33,13 @@ public:
 
 private:
     static constexpr const char *kStatePath = "/var/lib/applaunch/hdmi-desktop";
-    static constexpr int kTitleH = 22;
     static constexpr int kPollMs = 700;
 
     lv_obj_t *root_ = nullptr;
     lv_obj_t *switch_ = nullptr;
     lv_obj_t *status_label_ = nullptr;
     lv_obj_t *status_dot_ = nullptr;
+    lv_obj_t *note_label_ = nullptr;
     lv_timer_t *poll_timer_ = nullptr;
     bool last_desired_ = false;
     bool last_running_ = false;

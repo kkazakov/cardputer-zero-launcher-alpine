@@ -92,37 +92,12 @@ void UIHdmiPage::build_ui()
     lv_obj_set_style_pad_all(root_, 0, LV_PART_MAIN);
     lv_obj_clear_flag(root_, LV_OBJ_FLAG_SCROLLABLE);
 
-    // title bar: page name on the left, ESC hint on the right
-    lv_obj_t *title_bar = lv_obj_create(root_);
-    if (title_bar) {
-        lv_obj_set_size(title_bar, 320, kTitleH);
-        lv_obj_set_pos(title_bar, 0, 0);
-        lv_obj_set_style_radius(title_bar, 0, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(title_bar, lv_color_hex(kTitleBg), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(title_bar, 255, LV_PART_MAIN);
-        lv_obj_set_style_border_width(title_bar, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_left(title_bar, 8, LV_PART_MAIN);
-        lv_obj_set_style_pad_right(title_bar, 6, LV_PART_MAIN);
-        lv_obj_clear_flag(title_bar, LV_OBJ_FLAG_SCROLLABLE);
-
-        lv_obj_t *title = make_label(title_bar, LV_SYMBOL_VIDEO "  HDMI Desktop", kText,
-                                     &lv_font_montserrat_14);
-        if (title) {
-            lv_obj_set_align(title, LV_ALIGN_LEFT_MID);
-            lv_obj_set_y(title, 0);
-        }
-        lv_obj_t *hint = make_label(title_bar, "ESC  Back", kHint, &lv_font_montserrat_10);
-        if (hint) {
-            lv_obj_set_align(hint, LV_ALIGN_RIGHT_MID);
-            lv_obj_set_y(hint, 0);
-        }
-    }
-
-    // control card
+    // The page name comes from the global status bar (set_page_title), so
+    // there is no second header inside the 320x150 content area.
     lv_obj_t *card = lv_obj_create(root_);
     if (!card) return;
-    lv_obj_set_size(card, 296, 86);
-    lv_obj_set_pos(card, 12, 28);
+    lv_obj_set_size(card, 296, 98);
+    lv_obj_set_pos(card, 12, 6);
     lv_obj_set_style_radius(card, 12, LV_PART_MAIN);
     lv_obj_set_style_bg_color(card, lv_color_hex(kCardBg), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(card, 255, LV_PART_MAIN);
@@ -134,34 +109,47 @@ void UIHdmiPage::build_ui()
     lv_obj_t *icon = lv_image_create(card);
     if (icon) {
         lv_image_set_src(icon, launcher_platform::path_c("hdmi_100.png"));
-        lv_image_set_scale(icon, 48 * 256 / 100);
-        lv_obj_set_pos(icon, 12, 19);
+        lv_obj_set_size(icon, 44, 44);
+        lv_image_set_scale(icon, 44 * 256 / 100);
+        lv_obj_set_pos(icon, 14, 27);
     }
 
     lv_obj_t *name = make_label(card, "Desktop on HDMI", kText, &lv_font_montserrat_14);
-    if (name) lv_obj_set_pos(name, 76, 16);
-    status_label_ = make_label(card, "Off", kMuted, &lv_font_montserrat_12);
-    if (status_label_) lv_obj_set_pos(status_label_, 76, 38);
-    status_dot_ = make_label(card, LV_SYMBOL_BULLET, kMuted, &lv_font_montserrat_12);
-    if (status_dot_) lv_obj_set_pos(status_dot_, 76, 58);
-    lv_obj_t *note = make_label(card, "HDMI stays dark while off", kMuted,
-                                &lv_font_montserrat_10);
-    if (note) lv_obj_set_pos(note, 88, 59);
+    if (name) lv_obj_set_pos(name, 70, 16);
 
+    // A real dot: LV_SYMBOL_BULLET is not part of the Montserrat subset
+    // and rendered as a box glyph.
+    status_dot_ = lv_obj_create(card);
+    if (status_dot_) {
+        lv_obj_set_size(status_dot_, 8, 8);
+        lv_obj_set_pos(status_dot_, 70, 47);
+        lv_obj_set_style_radius(status_dot_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(status_dot_, 255, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(status_dot_, lv_color_hex(kMuted), LV_PART_MAIN);
+        lv_obj_set_style_border_width(status_dot_, 0, LV_PART_MAIN);
+        lv_obj_clear_flag(status_dot_, LV_OBJ_FLAG_SCROLLABLE);
+    }
+    status_label_ = make_label(card, "Off", kMuted, &lv_font_montserrat_12);
+    if (status_label_) lv_obj_set_pos(status_label_, 84, 41);
+    note_label_ = make_label(card, "HDMI stays dark while off", kMuted,
+                             &lv_font_montserrat_10);
+    if (note_label_) lv_obj_set_pos(note_label_, 70, 66);
+
+    // LVGL 9.5 draws LV_PART_INDICATOR as the whole track (it does not
+    // switch colour with LV_STATE_CHECKED), so the state-specific colours
+    // go on that part, with the knob as a white circle on top.
     switch_ = lv_switch_create(card);
     if (switch_) {
-        lv_obj_set_size(switch_, 52, 28);
-        lv_obj_set_pos(switch_, 228, 30);
-        lv_obj_set_style_bg_color(switch_, lv_color_hex(kTrack), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(switch_, 255, LV_PART_MAIN);
-        lv_obj_set_style_radius(switch_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(switch_, lv_color_hex(kAccent), LV_PART_INDICATOR);
-        lv_obj_set_style_bg_opa(switch_, 255, LV_PART_INDICATOR);
+        lv_obj_set_size(switch_, 56, 28);
+        lv_obj_set_pos(switch_, 226, 40);
         lv_obj_set_style_radius(switch_, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
+        lv_obj_set_style_bg_opa(switch_, LV_OPA_COVER, LV_PART_INDICATOR);
+        lv_obj_set_style_bg_color(switch_, lv_color_hex(kTrack), LV_PART_INDICATOR);
+        lv_obj_set_style_bg_color(switch_, lv_color_hex(kAccent),
+                                  LV_PART_INDICATOR | LV_STATE_CHECKED);
         lv_obj_set_style_bg_color(switch_, lv_color_hex(0xFFFFFF), LV_PART_KNOB);
-        lv_obj_set_style_bg_opa(switch_, 255, LV_PART_KNOB);
+        lv_obj_set_style_bg_opa(switch_, LV_OPA_COVER, LV_PART_KNOB);
         lv_obj_set_style_radius(switch_, LV_RADIUS_CIRCLE, LV_PART_KNOB);
-        lv_obj_set_style_pad_all(switch_, 2, LV_PART_KNOB);
         lv_obj_add_event_cb(switch_, switch_event_cb, LV_EVENT_VALUE_CHANGED, this);
     }
 
@@ -169,7 +157,7 @@ void UIHdmiPage::build_ui()
                                 &lv_font_montserrat_10);
     if (hint) {
         lv_obj_set_align(hint, LV_ALIGN_TOP_MID);
-        lv_obj_set_y(hint, 126);
+        lv_obj_set_y(hint, 122);
     }
 
     // Keys arrive on the page screen (the input group's focus object), the
@@ -189,11 +177,15 @@ void UIHdmiPage::apply_ui_state(bool running)
         }
     }
     if (status_label_)
-        lv_label_set_text(status_label_, running ? "On — session running" : "Off — idle");
+        lv_label_set_text(status_label_, running ? "On - session running" : "Off - idle");
+    if (note_label_) {
+        lv_label_set_text(note_label_, running ? "Sway + waybar on the HDMI output"
+                                               : "HDMI stays dark while off");
+    }
     if (status_dot_)
-        lv_obj_set_style_text_color(status_dot_,
-                                    lv_color_hex(running ? 0x4CD964 : kMuted),
-                                    LV_PART_MAIN);
+        lv_obj_set_style_bg_color(status_dot_,
+                                  lv_color_hex(running ? 0x4CD964 : kMuted),
+                                  LV_PART_MAIN);
     if (status_label_)
         lv_obj_set_style_text_color(status_label_,
                                     lv_color_hex(running ? 0xDFF5E1 : kMuted),
@@ -246,14 +238,14 @@ void UIHdmiPage::poll_timer_cb(lv_timer_t *timer)
     }
     if (self->pending_ && lv_tick_elaps(self->pending_at_) > 12000) {
         // The request produced no session change: say so instead of
-        // leaving "Starting…" on screen forever, and re-sync the switch
+        // leaving "Starting..." on screen forever, and re-sync the switch
         // and the boot preference to the real state.
         self->pending_ = false;
         self->set_desired(running, false);
         self->apply_ui_state(running);
         if (self->status_label_)
             lv_label_set_text(self->status_label_,
-                              "No change — see /var/log/applaunch.log");
+                              "No change - see application log");
     }
 }
 
@@ -266,7 +258,7 @@ void UIHdmiPage::switch_event_cb(lv_event_t *event)
     self->pending_ = true;
     self->pending_at_ = lv_tick_get();
     if (self->status_label_)
-        lv_label_set_text(self->status_label_, on ? "Starting…" : "Stopping…");
+        lv_label_set_text(self->status_label_, on ? "Starting..." : "Stopping...");
 }
 
 void UIHdmiPage::key_event_cb(lv_event_t *event)
