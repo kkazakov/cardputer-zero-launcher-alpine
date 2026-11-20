@@ -53,25 +53,46 @@ volatile int LVGL_RUN_FLAGE = 1;
 volatile uint32_t LV_EVENT_KEYBOARD;
 
 static volatile int keyboard_paused_flag = 0;
+static atomic_bool keyboard_state_reset_requested = false;
 static atomic_bool keyboard_shutdown_requested = false;
 static pthread_t keyboard_read_thread_id;
 static cp0_keyboard_thread_lifecycle_t keyboard_thread_lifecycle = {0};
 static pthread_mutex_t keyboard_thread_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/* HDMI-lock ESC watcher: a separate read-only evdev reader, because the
+ * launcher's libinput reader is suspended while sway owns the keypad. */
+static pthread_t esc_hold_thread_id;
+static atomic_bool esc_hold_watch_running = false;
+static atomic_bool esc_hold_stop_requested = false;
+static atomic_bool esc_hold_active = false;
+static atomic_uint_fast64_t esc_hold_started_ms = 0;
 #ifdef __linux__
 static struct libinput *g_libinput = NULL;
 void keyboard_pause(void) {
+    atomic_store_explicit(&keyboard_state_reset_requested, true,
+                          memory_order_release);
     keyboard_paused_flag = 1;
     if (g_libinput) libinput_suspend(g_libinput);
     SLOGI("[KBD] keyboard_pause()");
 }
 void keyboard_resume(void) {
     if (g_libinput) libinput_resume(g_libinput);
+    atomic_store_explicit(&keyboard_state_reset_requested, true,
+                          memory_order_release);
     keyboard_paused_flag = 0;
     SLOGI("[KBD] keyboard_resume()");
 }
 #else
-void keyboard_pause(void) { keyboard_paused_flag = 1; }
-void keyboard_resume(void) { keyboard_paused_flag = 0; }
+void keyboard_pause(void) {
+    atomic_store_explicit(&keyboard_state_reset_requested, true,
+                          memory_order_release);
+    keyboard_paused_flag = 1;
+}
+void keyboard_resume(void) {
+    atomic_store_explicit(&keyboard_state_reset_requested, true,
+                          memory_order_release);
+    keyboard_paused_flag = 0;
+}
 #endif
 
 /* ============================================================
@@ -208,6 +229,115 @@ static uint64_t monotonic_ms(void)
     struct timespec now = {0};
     if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) return 0;
     return (uint64_t)now.tv_sec * 1000u + (uint64_t)now.tv_nsec / 1000000u;
+}
+
+/* ============================================================
+ *  Internal-keypad ESC hold watcher (HDMI lock screen)
+ *
+ *  The normal libinput reader is suspended while sway owns the
+ *  internal keypad, but the evdev node is shared (no EVIOCGRAB),
+ *  so a second read-only reader still sees the keys. The UI polls
+ *  cp0_keyboard_esc_held_ms() and decides when the 2 s hold is up.
+ * ============================================================ */
+static void *esc_hold_watch_thread(void *arg)
+{
+    char *path = (char *)arg;
+    int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    if (fd < 0) {
+        SLOGE("[KBD] ESC hold watcher cannot open %s: %s", path, strerror(errno));
+        free(path);
+        return NULL;
+    }
+    SLOGI("[KBD] ESC hold watcher on %s (shared, no EVIOCGRAB)", path);
+    free(path);
+
+    struct pollfd pfd = { .fd = fd, .events = POLLIN };
+    bool down = false;
+    uint64_t since = 0;
+
+    while (!atomic_load_explicit(&esc_hold_stop_requested,
+                                 memory_order_acquire)) {
+        int pr = poll(&pfd, 1, 100);
+        if (pr < 0) {
+            if (errno == EINTR) continue;
+            break;
+        }
+        if (pr == 0) continue;
+        if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) break;
+        if (!(pfd.revents & POLLIN)) continue;
+
+        struct input_event ev;
+        while (read(fd, &ev, sizeof(ev)) == (ssize_t)sizeof(ev)) {
+            if (ev.type != EV_KEY || ev.code != KEY_ESC) continue;
+            if (ev.value == 1) {
+                down = true;
+                since = monotonic_ms();
+                atomic_store_explicit(&esc_hold_started_ms, since,
+                                      memory_order_release);
+                atomic_store_explicit(&esc_hold_active, true,
+                                      memory_order_release);
+            } else if (ev.value == 0) {
+                down = false;
+                atomic_store_explicit(&esc_hold_active, false,
+                                      memory_order_release);
+            }
+        }
+    }
+
+    atomic_store_explicit(&esc_hold_active, false, memory_order_release);
+    close(fd);
+    return NULL;
+}
+
+void cp0_keyboard_esc_hold_watch_start(void)
+{
+    if (atomic_exchange_explicit(&esc_hold_watch_running, true,
+                                 memory_order_acq_rel))
+        return;
+
+    atomic_store_explicit(&esc_hold_stop_requested, false,
+                          memory_order_release);
+    atomic_store_explicit(&esc_hold_active, false, memory_order_release);
+
+    const char *path = getenv("APPLAUNCH_LINUX_KEYBOARD_DEVICE");
+    if (path == NULL || path[0] == '\0')
+        path = "/dev/input/by-path/platform-3f804000.i2c-event";
+
+    char *arg = strdup(path);
+    if (arg == NULL) {
+        atomic_store_explicit(&esc_hold_watch_running, false,
+                              memory_order_release);
+        return;
+    }
+    if (pthread_create(&esc_hold_thread_id, NULL, esc_hold_watch_thread, arg) != 0) {
+        SLOGE("[KBD] cannot start ESC hold watcher: %s", strerror(errno));
+        free(arg);
+        atomic_store_explicit(&esc_hold_watch_running, false,
+                              memory_order_release);
+    }
+}
+
+void cp0_keyboard_esc_hold_watch_stop(void)
+{
+    if (!atomic_exchange_explicit(&esc_hold_watch_running, false,
+                                  memory_order_acq_rel))
+        return;
+    atomic_store_explicit(&esc_hold_stop_requested, true,
+                          memory_order_release);
+    pthread_join(esc_hold_thread_id, NULL);
+    atomic_store_explicit(&esc_hold_active, false, memory_order_release);
+}
+
+uint32_t cp0_keyboard_esc_held_ms(void)
+{
+    if (!atomic_load_explicit(&esc_hold_active, memory_order_acquire))
+        return 0;
+    const uint64_t since = atomic_load_explicit(&esc_hold_started_ms,
+                                                memory_order_acquire);
+    const uint64_t now = monotonic_ms();
+    uint64_t held = (now > since) ? (now - since) : 0;
+    if (held > 60000u) held = 60000u;
+    return (uint32_t)held;
 }
 
 static void recover_stale_fn(struct kbd_ctx *kc)
@@ -605,8 +735,25 @@ void *keyboard_read_thread(void *argv) {
     while (!atomic_load_explicit(&keyboard_shutdown_requested,
                                  memory_order_acquire)) {
         if (keyboard_paused_flag) {
+            if (atomic_load_explicit(&keyboard_shutdown_requested,
+                                     memory_order_acquire))
+                break;
             usleep(50000);
             continue;
+        }
+        /* After a pause/resume the held-modifier and repeat state are stale
+         * (e.g. the ENTER that started the HDMI session is still "down").
+         * Rebuild XKB state and drop queued pre-pause events once. */
+        if (atomic_exchange_explicit(&keyboard_state_reset_requested, false,
+                                     memory_order_acq_rel)) {
+            repeat_stop(&kc);
+            kc.repeating = false;
+            kc.fn_pressed = false;
+            kbd_wake_up(&kc);
+            libinput_dispatch(kc.li);
+            struct libinput_event *stale;
+            while ((stale = libinput_get_event(kc.li)) != NULL)
+                libinput_event_destroy(stale);
         }
         int pr = poll(pfds, 2, 100);
         if (pr < 0) {

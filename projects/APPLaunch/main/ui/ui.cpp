@@ -15,6 +15,7 @@
 #include "ui_low_battery.h"
 #include "ui_global_hint.h"
 #include "ui_loading.h"
+#include "ui_hdmi_lock.h"
 #include "ui_screensaver.h"
 #include <stdio.h>
 #include <cstdlib>
@@ -49,6 +50,7 @@ void init()
 
 void deinit()
 {
+    ui_hdmi_lock_deinit();
     cp0_keyboard_set_global_key_handler(nullptr);
     launcher_media_controls::stop_volume_cache();
     ui_global_hint::shutdown();

@@ -58,6 +58,18 @@ extern volatile int LVGL_RUN_FLAGE;
 extern volatile uint32_t LV_EVENT_KEYBOARD;
 
 void *keyboard_read_thread(void *argv);
+/* Suspend/resume the launcher's own libinput keyboard reader. The device is
+ * shared (no EVIOCGRAB), so the compositor keeps receiving keys while the
+ * launcher is paused. */
+void keyboard_pause(void);
+void keyboard_resume(void);
+/* Internal-keypad ESC hold monitor for the HDMI lock screen. This is a
+ * separate read-only evdev watcher, safe while keyboard_pause() is active.
+ * cp0_keyboard_esc_held_ms() returns 0 when ESC is up, otherwise the hold
+ * duration in milliseconds (clamped). No-ops on SDL. */
+void cp0_keyboard_esc_hold_watch_start(void);
+void cp0_keyboard_esc_hold_watch_stop(void);
+uint32_t cp0_keyboard_esc_held_ms(void);
 int cp0_keyboard_inject(uint32_t key_code, int key_state, uint32_t mods);
 int cp0_keyboard_inject_text(const char *utf8);
 void cp0_keyboard_set_global_key_handler(cp0_keyboard_key_handler_t handler);

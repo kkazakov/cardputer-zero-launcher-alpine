@@ -364,6 +364,10 @@ volatile uint32_t LV_EVENT_KEYBOARD;
 
 void keyboard_pause(void) {}
 void keyboard_resume(void) {}
+/* HDMI-lock ESC watcher is device-only; the SDL simulator has no keypad. */
+void cp0_keyboard_esc_hold_watch_start(void) {}
+void cp0_keyboard_esc_hold_watch_stop(void) {}
+uint32_t cp0_keyboard_esc_held_ms(void) { return 0; }
 void *keyboard_read_thread(void *argv)
 {
     (void)argv;
