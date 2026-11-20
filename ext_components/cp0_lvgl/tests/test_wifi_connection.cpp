@@ -38,7 +38,7 @@ int cp0_process_commands::capture_argv_with_timeout(
     const std::atomic<bool> *)
 {
     output.clear();
-    if (args == std::vector<std::string>{"nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "dev", "status"}) {
+    if (args == std::vector<std::string>{"/usr/local/bin/cpz-nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "dev", "status"}) {
         output = commands.device;
     } else if (args.size() > 1 && args[1] == "--wait") {
         ++commands.activations;
@@ -54,24 +54,24 @@ int cp0_process_commands::capture_argv_with_timeout(
         commands.device = commands.after;
         output = commands.error;
         return commands.activation_result;
-    } else if (args == std::vector<std::string>{"nmcli", "dev", "disconnect", "wlan0"}) {
+    } else if (args == std::vector<std::string>{"/usr/local/bin/cpz-nmcli", "dev", "disconnect", "wlan0"}) {
         ++commands.disconnects;
         if (commands.disconnect_result == 0)
             commands.device = "wlan0:wifi:disconnected:--\n";
         return commands.disconnect_result;
-    } else if (args == std::vector<std::string>{"nmcli", "-t", "--escape", "no", "-f", "UUID,TYPE,NAME", "con", "show"}) {
+    } else if (args == std::vector<std::string>{"/usr/local/bin/cpz-nmcli", "-t", "--escape", "no", "-f", "UUID,TYPE,NAME", "con", "show"}) {
         output = "test-uuid:802-11-wireless:netplan-wlan0-NewNetwork\n"
                  "old-uuid:802-11-wireless:OldNetwork\n"
                  "wired-uuid:802-3-ethernet:Wired connection 1\n";
-    } else if (args == std::vector<std::string>{"nmcli", "-t", "--escape", "no", "-g", "802-11-wireless.ssid", "con", "show", "uuid", "test-uuid"}) {
+    } else if (args == std::vector<std::string>{"/usr/local/bin/cpz-nmcli", "-t", "--escape", "no", "-g", "802-11-wireless.ssid", "con", "show", "uuid", "test-uuid"}) {
         output = "NewNetwork\n";
-    } else if (args == std::vector<std::string>{"nmcli", "-t", "--escape", "no", "-g", "802-11-wireless.ssid", "con", "show", "uuid", "old-uuid"}) {
+    } else if (args == std::vector<std::string>{"/usr/local/bin/cpz-nmcli", "-t", "--escape", "no", "-g", "802-11-wireless.ssid", "con", "show", "uuid", "old-uuid"}) {
         output = "OldNetwork\n";
-    } else if (args == std::vector<std::string>{"nmcli", "con", "delete", "uuid", "test-uuid"}) {
+    } else if (args == std::vector<std::string>{"/usr/local/bin/cpz-nmcli", "con", "delete", "uuid", "test-uuid"}) {
         ++commands.deletions;
         commands.operations.push_back("delete-target");
         return commands.deletion_result;
-    } else if (args == std::vector<std::string>{"nmcli", "-t", "-f", "IN-USE,SIGNAL,SSID", "dev", "wifi", "list", "--rescan", "no"}) {
+    } else if (args == std::vector<std::string>{"/usr/local/bin/cpz-nmcli", "-t", "-f", "IN-USE,SIGNAL,SSID", "dev", "wifi", "list", "--rescan", "no"}) {
         output = "*:70:NewNetwork\n";
     } else if (args == std::vector<std::string>{"ip", "-4", "-o", "addr", "show", "wlan0"}) {
         output = "3: wlan0 inet 192.168.1.42/24\n";
@@ -97,7 +97,7 @@ int main()
         assert(commands.activations == 2 && commands.deletions == 1 && commands.disconnects == 0);
         assert((commands.operations == std::vector<std::string>{"activate", "delete-target", "activate"}));
         std::vector<std::string> recovered_args = {
-            "nmcli", "--wait", "20", "dev", "wifi", "connect", "NewNetwork", "password", "newpassword"};
+            "/usr/local/bin/cpz-nmcli", "--wait", "20", "dev", "wifi", "connect", "NewNetwork", "password", "newpassword"};
         if (hidden) recovered_args.insert(recovered_args.end(), {"hidden", "yes"});
         assert(commands.activation_args == recovered_args);
         assert(wifi.get_status().connected);
@@ -161,7 +161,7 @@ int main()
         assert(commands.disconnects == 1);
         assert(commands.activations == 1);
         std::vector<std::string> expected = {
-            "nmcli", "--wait", "20", "dev", "wifi", "connect", "NewNetwork", "password", "newpassword"};
+            "/usr/local/bin/cpz-nmcli", "--wait", "20", "dev", "wifi", "connect", "NewNetwork", "password", "newpassword"};
         if (hidden) expected.insert(expected.end(), {"hidden", "yes"});
         assert(commands.activation_args == expected);
         assert(wifi.connect("NewNetwork", "newpassword", hidden) == 0);

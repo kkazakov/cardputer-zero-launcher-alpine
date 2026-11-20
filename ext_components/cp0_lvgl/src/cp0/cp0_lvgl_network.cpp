@@ -76,6 +76,10 @@ int cp0_network_list(cp0_netif_info_t *entries, int max_entries, int *out_count)
     return 0;
 }
 
+// v0.19.1: Alpine's NetworkManager has no polkit; as user cpz every
+// nmcli mutation fails with "Not authorized" (radio, connect, forget).
+// /usr/local/bin/cpz-nmcli applies the existing passwordless sudo grant.
+// Keep every nmcli invocation below on that wrapper.
 class WifiSystem
 {
 public:
@@ -162,7 +166,7 @@ public:
         constexpr int kScanCommandTimeoutMs = 8000;
         std::string command_output;
         int command_result = cp0_process_commands::capture_argv_with_timeout(
-            {"nmcli", "dev", "wifi", "rescan"}, command_output,
+            {"/usr/local/bin/cpz-nmcli", "dev", "wifi", "rescan"}, command_output,
             kScanCommandTimeoutMs);
         if (command_result == -ETIMEDOUT) return CP0_WIFI_ERROR_TIMEOUT;
         if (command_result != 0) return cp0::wifi::classify_command_failure(command_output);
@@ -170,7 +174,7 @@ public:
 
         std::string output;
         command_result = cp0_process_commands::capture_argv_with_timeout(
-            {"nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY,IN-USE",
+            {"/usr/local/bin/cpz-nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY,IN-USE",
              "dev", "wifi", "list"}, output, kScanCommandTimeoutMs);
         if (command_result == -ETIMEDOUT) return CP0_WIFI_ERROR_TIMEOUT;
         if (command_result != 0) return cp0::wifi::classify_command_failure(output);
@@ -178,7 +182,7 @@ public:
         std::unordered_set<std::string> saved_profiles;
         std::string profiles_output;
         if (cp0_process_commands::capture_argv_with_timeout(
-                {"nmcli", "-t", "--escape", "no", "-f", "UUID,TYPE,NAME", "con", "show"},
+                {"/usr/local/bin/cpz-nmcli", "-t", "--escape", "no", "-f", "UUID,TYPE,NAME", "con", "show"},
                 profiles_output, kScanCommandTimeoutMs) == 0) {
             for (const auto &profile : cp0::network::parse_connection_profiles(profiles_output)) {
                 if (profile.type != "802-11-wireless") continue;
@@ -287,7 +291,7 @@ public:
             return result;
         };
         if (with_password) {
-            std::vector<std::string> args{"nmcli", "--wait", kActivationTimeoutSeconds,
+            std::vector<std::string> args{"/usr/local/bin/cpz-nmcli", "--wait", kActivationTimeoutSeconds,
                 "dev", "wifi", "connect", ssid, "password", password};
             if (hidden) args.insert(args.end(), {"hidden", "yes"});
             command_result = run_connect(args);
@@ -303,13 +307,13 @@ public:
                 command_result = run_connect(args);
             }
         } else if (hidden) {
-            command_result = run_connect({"nmcli", "--wait", kActivationTimeoutSeconds,
+            command_result = run_connect({"/usr/local/bin/cpz-nmcli", "--wait", kActivationTimeoutSeconds,
                 "dev", "wifi", "connect", ssid, "hidden", "yes"});
         } else {
-            command_result = run_connect({"nmcli", "--wait", kActivationTimeoutSeconds,
+            command_result = run_connect({"/usr/local/bin/cpz-nmcli", "--wait", kActivationTimeoutSeconds,
                 "con", "up", "id", ssid});
             if (command_result != 0) {
-                command_result = run_connect({"nmcli", "--wait", kActivationTimeoutSeconds,
+                command_result = run_connect({"/usr/local/bin/cpz-nmcli", "--wait", kActivationTimeoutSeconds,
                     "dev", "wifi", "connect", ssid});
             }
         }
@@ -379,7 +383,7 @@ public:
             return -1;
         std::string profiles_output;
         const int list_result = cp0_process_commands::capture_argv_with_timeout(
-            {"nmcli", "-t", "--escape", "no", "-f", "UUID,TYPE,NAME", "con", "show"},
+            {"/usr/local/bin/cpz-nmcli", "-t", "--escape", "no", "-f", "UUID,TYPE,NAME", "con", "show"},
             profiles_output, 5000);
         if (list_result != 0) return list_result;
 
@@ -393,7 +397,7 @@ public:
                 (!has_profile_ssid && profile.name != ssid))
                 continue;
             const int delete_result = cp0_process_commands::capture_argv_with_timeout(
-                {"nmcli", "con", "delete", "uuid", profile.uuid}, output, 5000);
+                {"/usr/local/bin/cpz-nmcli", "con", "delete", "uuid", profile.uuid}, output, 5000);
             if (delete_result != 0) return delete_result;
             ++deleted;
         }
@@ -405,7 +409,7 @@ public:
         ssid.clear();
         std::string output;
         if (uuid.empty() || cp0_process_commands::capture_argv_with_timeout(
-                {"nmcli", "-t", "--escape", "no", "-g", "802-11-wireless.ssid",
+                {"/usr/local/bin/cpz-nmcli", "-t", "--escape", "no", "-g", "802-11-wireless.ssid",
                  "con", "show", "uuid", uuid},
                 output, 5000) != 0)
             return false;
@@ -422,7 +426,7 @@ public:
             return 0;
         std::string output;
         if (cp0_process_commands::capture_argv_with_timeout(
-                {"nmcli", "-t", "--escape", "no", "-f", "UUID,TYPE,NAME", "con", "show"},
+                {"/usr/local/bin/cpz-nmcli", "-t", "--escape", "no", "-f", "UUID,TYPE,NAME", "con", "show"},
                 output, 5000) != 0)
             return 0;
         for (const auto &profile : cp0::network::parse_connection_profiles(output)) {
@@ -442,7 +446,7 @@ public:
         // down eth0 as a side effect.
         std::string device_output;
         if (cp0_process_commands::capture_argv_with_timeout(
-                {"nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION",
+                {"/usr/local/bin/cpz-nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION",
                  "dev", "status"}, device_output, 5000) != 0)
             return CP0_WIFI_ERROR_SERVICE;
 
@@ -452,14 +456,14 @@ public:
 
         std::string output;
         return cp0_process_commands::capture_argv_with_timeout(
-            {"nmcli", "dev", "disconnect", wifi_iface}, output, 5000);
+            {"/usr/local/bin/cpz-nmcli", "dev", "disconnect", wifi_iface}, output, 5000);
     }
 
     int radio_enabled()
     {
         std::string output;
         if (cp0_process_commands::capture_argv_with_timeout(
-                {"nmcli", "radio", "wifi"}, output, 5000) != 0)
+                {"/usr/local/bin/cpz-nmcli", "radio", "wifi"}, output, 5000) != 0)
             return 0;
         return cp0::network::parse_radio_enabled(output) ? 1 : 0;
     }
@@ -468,7 +472,7 @@ public:
     {
         std::string output;
         int ret = cp0_process_commands::capture_argv_with_timeout(
-            {"nmcli", "radio", "wifi", enabled ? "on" : "off"}, output, 5000);
+            {"/usr/local/bin/cpz-nmcli", "radio", "wifi", enabled ? "on" : "off"}, output, 5000);
         update_status_cache();
         return ret;
     }
@@ -530,7 +534,7 @@ private:
 
 
         if (cp0_process_commands::capture_argv_with_timeout(
-                {"nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "dev", "status"},
+                {"/usr/local/bin/cpz-nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "dev", "status"},
                 output, 2000) == 0) {
             const auto parsed = cp0::network::parse_device_status(output);
             st.connected = parsed.connected ? 1 : 0;
@@ -547,7 +551,7 @@ private:
 
         output.clear();
         if (cp0_process_commands::capture_argv_with_timeout(
-                {"nmcli", "-t", "-f", "IN-USE,SIGNAL,SSID", "dev", "wifi", "list",
+                {"/usr/local/bin/cpz-nmcli", "-t", "-f", "IN-USE,SIGNAL,SSID", "dev", "wifi", "list",
                  "--rescan", "no"}, output, 2000) == 0) {
             cp0::network::Status parsed;
             parsed.ssid = st.ssid;
@@ -567,7 +571,7 @@ private:
     {
         std::string output;
         if (cp0_process_commands::capture_argv_with_timeout(
-                {"nmcli", "-t", "-f", "NAME", "con", "show", "--active"},
+                {"/usr/local/bin/cpz-nmcli", "-t", "-f", "NAME", "con", "show", "--active"},
                 output, 5000) != 0)
             return {};
         return cp0::network::first_active_connection(output);

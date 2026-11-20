@@ -50,15 +50,15 @@ void test_general_state_parser()
 void test_process_requests_are_bounded()
 {
     const std::list<std::string> query{
-        "CaptureArgv", "nmcli", "--wait", "5", "-g", "GENERAL.STATE", "device", "show", "eth0"};
+        "CaptureArgv", "/usr/local/bin/cpz-nmcli", "--wait", "5", "-g", "GENERAL.STATE", "device", "show", "eth0"};
     assert(settings_ethernet::process_request(Operation::QueryState) == query);
 
     const std::list<std::string> connect{
-        "CaptureArgv", "nmcli", "--wait", "10", "device", "connect", "eth0"};
+        "CaptureArgv", "/usr/local/bin/cpz-nmcli", "--wait", "10", "device", "connect", "eth0"};
     assert(settings_ethernet::process_request(Operation::Connect) == connect);
 
     const std::list<std::string> disconnect{
-        "CaptureArgv", "nmcli", "--wait", "10", "device", "disconnect", "eth0"};
+        "CaptureArgv", "/usr/local/bin/cpz-nmcli", "--wait", "10", "device", "disconnect", "eth0"};
     assert(settings_ethernet::process_request(Operation::Disconnect) == disconnect);
 }
 

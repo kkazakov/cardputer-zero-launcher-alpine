@@ -42,7 +42,7 @@ bool parse_general_state(std::string_view output, bool &connected) noexcept
 
 std::list<std::string> process_request(Operation operation)
 {
-    std::list<std::string> request{"CaptureArgv", "nmcli", "--wait"};
+    std::list<std::string> request{"CaptureArgv", "/usr/local/bin/cpz-nmcli", "--wait"};
     if (operation == Operation::QueryState) {
         request.emplace_back("5");
         request.insert(request.end(),
