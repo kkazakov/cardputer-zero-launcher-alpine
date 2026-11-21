@@ -15,6 +15,7 @@
 #include "terminal_help_factory.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <list>
 #include <memory>
@@ -84,12 +85,14 @@ private:
     void reload_home_icons();
     void applications_reload();
     void rebuild_builtin_apps();
+    void start_builtin_availability_watch();
     int normalized_app_index(int index) const;
     const app *app_at_index(int index) const;
 
     static void lv_go_back_home(void *arg) noexcept;
     static void esc_force_home_cb(void *user_data) noexcept;
     static void app_registry_changed_cb(void *user_data) noexcept;
+    static void availability_timer_cb(lv_timer_t *timer) noexcept;
 
     std::weak_ptr<UILaunchPage> launch_page_;
     int current_app = 2;
@@ -98,6 +101,8 @@ private:
     LauncherPageLifecycleModel page_lifecycle_;
     int fixed_count = 0;
     bool bound_ = false;
+    lv_timer_t *availability_timer_ = nullptr;
+    std::uint32_t availability_mask_ = 0;
     std::list<app> app_list;
     std::shared_ptr<void> app_Page;
 };

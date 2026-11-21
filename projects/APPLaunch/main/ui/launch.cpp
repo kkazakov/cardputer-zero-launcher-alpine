@@ -28,6 +28,12 @@
 namespace {
 constexpr size_t kHomeCarouselSlotCount = 5;
 constexpr int kHomeCarouselCenterSlot = 2;
+// Conditional built-in entries (Tailscale) become visible when the user
+// installs/logs in a package while the launcher is already running — the
+// usual case right after a reflash, when cpz-wifi.start reinstalls the apk
+// world in the background. The check is cheap while the package is absent
+// (one filesystem probe), so a slow poll costs nothing.
+constexpr uint32_t kAvailabilityPollPeriodMs = 20000;
 }
 
 // ============================================================
@@ -47,6 +53,7 @@ void Launch::bind_ui()
     reload_home_icons();
 
     app_directory_watcher_.start([this] { applications_reload(); });
+    start_builtin_availability_watch();
     esc_ui_watchdog_.start();
     esc_hold_hint_controller().set_force_home_callback(esc_force_home_cb, this);
 }
@@ -282,6 +289,10 @@ Launch::~Launch()
     esc_hold_hint_controller().set_return_home_enabled(false);
     esc_ui_watchdog_.shutdown();
     app_directory_watcher_.stop();
+    if (availability_timer_) {
+        lv_timer_delete(availability_timer_);
+        availability_timer_ = nullptr;
+    }
     page_lifecycle_.stop();
     lv_async_call_cancel(lv_go_back_home, this);
 }
@@ -301,6 +312,28 @@ void Launch::rebuild_builtin_apps()
 
     fixed_count = app_list.size();
     current_app = normalized_app_index(current_app);
+}
+
+void Launch::start_builtin_availability_watch()
+{
+    availability_mask_ = launcher_builtin_app_availability_mask();
+    if (!availability_timer_) {
+        availability_timer_ = lv_timer_create(availability_timer_cb, kAvailabilityPollPeriodMs, this);
+    }
+}
+
+void Launch::availability_timer_cb(lv_timer_t *timer) noexcept
+{
+    auto *self = static_cast<Launch *>(lv_timer_get_user_data(timer));
+    if (!self) return;
+    try {
+        const std::uint32_t mask = launcher_builtin_app_availability_mask();
+        if (mask == self->availability_mask_) return;
+        self->availability_mask_ = mask;
+        SLOGI("[HOME] built-in app availability changed (0x%08x)", mask);
+        self->applications_reload();
+    } catch (...) {
+    }
 }
 
 void Launch::app_registry_changed_cb(void *user_data) noexcept

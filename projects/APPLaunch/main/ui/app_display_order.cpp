@@ -13,7 +13,7 @@
 
 namespace {
 
-constexpr std::array<std::string_view, 25> kBuiltInAppOrder = {
+constexpr std::array<std::string_view, 26> kBuiltInAppOrder = {
     "settings",
     "store",
     "cli",
@@ -40,6 +40,9 @@ constexpr std::array<std::string_view, 25> kBuiltInAppOrder = {
     "capcc1101subgchat",
     // Alpine fork addition: on-demand HDMI desktop toggle.
     "hdmi",
+    // Alpine fork addition: optional Tailscale tunnel toggle (hidden until
+    // the package is installed and the node is logged in).
+    "tailscale",
 };
 
 // These applications are delivered as independent product packages and are

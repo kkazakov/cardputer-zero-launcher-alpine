@@ -15,6 +15,12 @@ enum class LauncherAppOrigin : std::uint8_t {
     StoreInstalled,
 };
 
+// Optional runtime gate for a built-in entry. Returning false hides the app
+// from the home carousel and from Settings -> Launcher without touching its
+// saved enabled flag (so it comes back with the same state when the
+// precondition returns). Called from the LVGL thread only.
+typedef bool (*LauncherAppAvailabilityFn)();
+
 struct AppDescriptor {
     const char *label;
     const char *icon;
@@ -22,7 +28,15 @@ struct AppDescriptor {
     bool configurable;
     bool always_on;
     LauncherAppOrigin origin = LauncherAppOrigin::Builtin;
+    // Null means "always available". The Tailscale page uses this to stay
+    // hidden until the daemon is installed AND the node is logged in.
+    LauncherAppAvailabilityFn available = nullptr;
 };
+
+inline bool launcher_app_registry_is_available(const AppDescriptor &desc)
+{
+    return !desc.available || desc.available();
+}
 
 const AppDescriptor *launcher_app_registry_entries(std::size_t *count);
 bool launcher_app_registry_is_enabled(const AppDescriptor &desc);

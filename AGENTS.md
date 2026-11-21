@@ -28,7 +28,15 @@ Related files (all worth a quick scan):
 > the `.deb`/systemd packaging pipeline, and the non-English READMEs.
 > It adds: the **HDMI desktop toggle** page (`page_app/ui_app_hdmi.*` —
 > starts/stops `cpz-desktop`, persists `/var/lib/applaunch/hdmi-desktop`,
-> re-applied at boot by the image), the Alpine lock-screen artwork
+> re-applied at boot by the image), the **Tailscale tunnel toggle** page
+> (`page_app/ui_app_tailscale.*` — starts/stops the optional Alpine
+> `tailscale` service, persists `/var/lib/applaunch/tailscale`, re-applied
+> at boot; unlike HDMI it is *conditionally registered*: the entry carries
+> an `AppDescriptor::available` predicate so it stays hidden until
+> `/usr/local/bin/cpz-tailscale available` reports the package installed
+> AND the node logged in, and the home screen re-polls that predicate so
+> the card appears without a launcher restart), the Alpine lock-screen
+> artwork
 > (`share/images/lockscreen.png`, 320x150 — replaces the stock
 > wallpaper; the home screen keeps its stock background), and the
 > cpz-user deployment (OpenRC

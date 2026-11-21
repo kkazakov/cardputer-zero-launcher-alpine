@@ -12,11 +12,14 @@
 
 int main()
 {
-    constexpr std::array<std::string_view, 24> expected = {
+    constexpr std::array<std::string_view, 26> expected = {
         "Settings", "Store", "CLI", "Python", "ZClaw", "SSH", "IP Panel", "Files",
         "Camera", "Rec", "Music", "Piano", "Compass", "IR Remote", "IR Chat",
         "Calculator", "Snake", "Tank", "Keyboard Guide", "FactoryTest", "GPS", "LoRa",
         "NFC", "SubG Chat",
+        // Alpine fork additions: HDMI desktop and the optional Tailscale
+        // tunnel toggle.
+        "HDMI", "Tailscale",
     };
 
     for (std::size_t index = 0; index < expected.size(); ++index)

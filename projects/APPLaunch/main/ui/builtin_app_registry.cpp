@@ -9,6 +9,7 @@
 #include "app_display_order.hpp"
 #include "app_registry.h"
 #include "cli_terminal_help.hpp"
+#include "cp0_lvgl_app.h"
 #include "launch.h"
 #include "ui.h"
 #include "generated/page_app.h"
@@ -18,11 +19,35 @@
 #include <array>
 #include <cstring>
 #include <limits>
+#include <list>
+#include <string>
 #include <vector>
 
 namespace {
 
 using BuiltinAppAppender = void (*)(std::list<app> &apps, const AppDescriptor &desc);
+
+bool tailscale_page_available()
+{
+#if defined(__linux__) && !defined(HAL_PLATFORM_SDL)
+    // Tailscale is an optional on-device package (apk add tailscale
+    // tailscale-openrc) and /var/lib/tailscale is 0700, so cpz cannot read
+    // the login state itself. The root helper answers "installed and
+    // logged in" with its exit status; CaptureArgv reports the child's
+    // status in the callback's first argument.
+    //
+    // Deliberately NOT `tailscale status`: that needs the running daemon,
+    // and the page must stay visible while the tunnel is switched OFF.
+    std::list<std::string> request = {"CaptureArgv", "sudo", "-n",
+                                      "/usr/local/bin/cpz-tailscale", "available"};
+    bool available = false;
+    cp0_signal_process_api(request, [&](int code, std::string) { available = code == 0; });
+    return available;
+#else
+    // No helper on the SDL simulator (the CMake emulator builds this file).
+    return false;
+#endif
+}
 
 struct BuiltinAppRegistration {
     AppDescriptor desc;
@@ -88,6 +113,12 @@ constexpr BuiltinAppRegistration BUILTIN_APPS[] = {
     // Alpine fork: on-demand HDMI desktop toggle (cpz-desktop start/stop).
     {{"HDMI", "hdmi_100.png", "app_HDMI", false, true},
      nullptr, false, true, false, append_page_app<UIHdmiPage>},
+    // Alpine fork: Tailscale tunnel toggle. Not an image package — the
+    // entry stays hidden until /usr/local/bin/cpz-tailscale reports the
+    // daemon installed AND the node logged in (see the predicate above).
+    {{"Tailscale", "tailscale_100.png", "app_Tailscale", false, true,
+      LauncherAppOrigin::Builtin, tailscale_page_available},
+     nullptr, false, true, false, append_page_app<UITailscalePage>},
     // Alpine fork: the Snake and Tank demo games were dropped from the
     // product at the user's request (the cardputer-zero-alpine image is
     // an appliance launcher, not a games console). The page sources stay
@@ -170,8 +201,21 @@ void launcher_append_enabled_builtin_apps(std::list<app> &apps)
     for (std::size_t index = 0; index < sizeof(BUILTIN_APPS) / sizeof(BUILTIN_APPS[0]); ++index) {
         if (!is_first_registration(index)) continue;
         const auto &registration = BUILTIN_APPS[index];
+        // A conditional entry (Tailscale) is neither listed nor launchable
+        // until its precondition holds; its saved enabled flag is untouched.
+        if (!launcher_app_registry_is_available(registration.desc)) continue;
         if (launcher_app_registry_is_enabled(registration.desc)) append_builtin_app(apps, registration);
     }
+}
+
+std::uint32_t launcher_builtin_app_availability_mask()
+{
+    std::uint32_t mask = 0;
+    for (const auto &registration : BUILTIN_APPS) {
+        if (!registration.desc.available) continue;
+        mask = (mask << 1) | (registration.desc.available() ? 1u : 0u);
+    }
+    return mask;
 }
 
 void launcher_sort_app_display_order(std::list<app> &apps)

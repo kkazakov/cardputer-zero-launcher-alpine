@@ -17,6 +17,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 namespace settings_t12b {
 namespace {
@@ -303,9 +304,15 @@ std::vector<launcher::AppEntry> launcher_app_entries()
 #ifdef LAUNCHER_BUILD
     std::size_t count = 0;
     const AppDescriptor *entries = launcher_app_registry_entries(&count);
+    // A conditional entry (Tailscale before the package is installed and
+    // logged in) must not appear as a toggle for an app that cannot exist.
+    std::vector<AppDescriptor> visible;
+    visible.reserve(count);
+    for (std::size_t index = 0; index < count; ++index)
+        if (launcher_app_registry_is_available(entries[index])) visible.push_back(entries[index]);
     return launcher::configurable_entries(
-        entries,
-        count,
+        visible.data(),
+        visible.size(),
         [](const AppDescriptor &descriptor) {
             try {
                 return launcher_app_registry_is_enabled(descriptor);
@@ -331,7 +338,8 @@ bool populate_launcher_children(Tree &tree, const NodeIter &parent)
         if (!descriptor.configurable || !descriptor.label || !descriptor.label[0] ||
             !descriptor.config_key || !descriptor.config_key[0] ||
             !launcher::is_launcher_settings_origin(descriptor.origin) ||
-            launcher::is_protected_launcher_app(descriptor.config_key))
+            launcher::is_protected_launcher_app(descriptor.config_key) ||
+            !launcher_app_registry_is_available(descriptor))
             continue;
         tree.append_child(
             parent,
