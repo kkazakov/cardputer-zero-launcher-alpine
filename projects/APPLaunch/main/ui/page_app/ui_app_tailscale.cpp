@@ -229,6 +229,11 @@ void UITailscalePage::request_tunnel(bool on) const
     // state. The helper owns the runlevel + service changes (root only).
     run_background({"sudo", "-n", "/usr/local/bin/cpz-tailscale", "apply",
                     on ? "on" : "off"});
+    // v0.21.6: snapshot right away. Without this, a toggle followed by a
+    // poweroff + reflash before the 5-minute cron run lost the choice
+    // (and could bring the tunnel back on). cpz-save has its own lock, so
+    // overlapping triggers are harmless.
+    run_background({"sudo", "-n", "/usr/local/bin/cpz-save"});
 }
 
 void UITailscalePage::poll_timer_cb(lv_timer_t *timer)
