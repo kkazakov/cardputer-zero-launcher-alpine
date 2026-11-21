@@ -756,6 +756,54 @@ int submit_privileged(std::list<std::string> arguments,
                       RequestStartedCallback started)
 {
     if (!callback) return api_error_code(ApiError::InvalidArgument);
+    if (arguments.empty()) return api_error_code(ApiError::InvalidArgument);
+    const std::string command = arguments.front();
+
+    auto complete = [callback](int result_code, int exit_code) mutable {
+        PrivilegedResult result;
+        result.result_code = result_code;
+        result.exit_code = exit_code;
+        result.kind = classify_privileged_result(result_code, exit_code);
+        invoke_noexcept(callback, std::move(result));
+    };
+
+    // Alpine/OpenRC: the sudo coordinator's `sudo -S` password-prompt flow
+    // never completes on this image (cpz has NOPASSWD sudo), so NtpSet and
+    // TimeSet used to do nothing. Run them directly through the process API
+    // with `sudo -n`, the same path the HDMI/Tailscale pages use.
+    std::list<std::string> argv;
+    if (command == "NtpSet") {
+        std::string value = "0";
+        auto it = arguments.begin();
+        if (++it != arguments.end()) value = *it;
+        argv = {"RunArgv", "0", "sudo", "-n", "/usr/local/bin/cpz-ntp", "set",
+                value == "1" ? "1" : "0"};
+    } else if (command == "TimeSet") {
+        std::string timestamp;
+        auto it = arguments.begin();
+        if (++it != arguments.end()) timestamp = *it;
+        argv = {"RunArgv", "0", "sudo", "-n", "/bin/sh", "-c",
+                "date -s '" + timestamp + "'; hwclock -w"};
+    }
+
+    if (!argv.empty()) {
+        if (started) {
+            try {
+                started(0, 0);
+            } catch (...) {
+            }
+        }
+        try {
+            cp0_signal_process_api(std::move(argv),
+                [complete = std::move(complete)](int code, std::string) mutable {
+                    complete(code, code);
+                });
+        } catch (...) {
+            return api_error_code(ApiError::Invocation);
+        }
+        return 0;
+    }
+
     try {
         cp0_signal_system_admin_async(
             std::move(arguments),
