@@ -8,6 +8,7 @@
 
 #include "launch.h"
 #include "ui_launch_page.h"
+#include "package_status_watch.hpp"
 
 #include "hal_lvgl_bsp.h"
 #include "launcher_platform.hpp"
@@ -58,10 +59,14 @@ LauncherUiRuntime::LauncherUiRuntime()
     launch_->set_launch_page(launch_page_);
 }
 
-LauncherUiRuntime::~LauncherUiRuntime() = default;
+LauncherUiRuntime::~LauncherUiRuntime()
+{
+    launcher_package_status_stop();
+}
 
 void LauncherUiRuntime::start()
 {
     build_launcher_home();
     show_initial_screen();
+    launcher_package_status_start();
 }

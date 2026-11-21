@@ -53,11 +53,15 @@ int cp0_timedate_get_ntp(int *enabled) {
     if (!c) {
         g_clear_error(&e);
         // Alpine/OpenRC has no systemd-timedated. cpz-ntp keeps the user's
-        // choice in /var/lib/cpz/ntp and runs busybox ntpd; report it as
-        // available so the Date & Time toggle is usable instead of greyed
-        // out with "NTP unavailable".
-        FILE *f = std::fopen("/var/lib/cpz/ntp", "r");
-        if (!f) return -1;
+        // choice in /cfg/ntp (persisted with the card) or /var/lib/cpz/ntp;
+        // report it as available even before the first save, otherwise the
+        // Date & Time page greys out both the NTP toggle and manual time.
+        FILE *f = std::fopen("/cfg/ntp", "r");
+        if (!f) f = std::fopen("/var/lib/cpz/ntp", "r");
+        if (!f) {
+            *enabled = 0;
+            return 0;
+        }
         int value = 0;
         const int read = std::fscanf(f, "%d", &value);
         std::fclose(f);
