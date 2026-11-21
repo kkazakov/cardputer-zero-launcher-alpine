@@ -47,7 +47,24 @@ bool write_system_time(std::time_t t) {
 }
 }
 int cp0_timedate_get_ntp(int *enabled) {
-    if (!enabled) return -22; GError *e = nullptr; auto *c = connection(&e); if (!c) { g_clear_error(&e); return -1; }
+    if (!enabled) return -22;
+    GError *e = nullptr;
+    auto *c = connection(&e);
+    if (!c) {
+        g_clear_error(&e);
+        // Alpine/OpenRC has no systemd-timedated. cpz-ntp keeps the user's
+        // choice in /var/lib/cpz/ntp and runs busybox ntpd; report it as
+        // available so the Date & Time toggle is usable instead of greyed
+        // out with "NTP unavailable".
+        FILE *f = std::fopen("/var/lib/cpz/ntp", "r");
+        if (!f) return -1;
+        int value = 0;
+        const int read = std::fscanf(f, "%d", &value);
+        std::fclose(f);
+        if (read != 1) return -1;
+        *enabled = value ? 1 : 0;
+        return 0;
+    }
     auto *r = get_property(c, "NTP", &e); GVariant *v = nullptr;
     if (r) g_variant_get(r, "(v)", &v);
     const bool ok = v && g_variant_is_of_type(v, G_VARIANT_TYPE_BOOLEAN);

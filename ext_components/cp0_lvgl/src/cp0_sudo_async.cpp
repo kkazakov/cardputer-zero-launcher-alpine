@@ -1008,7 +1008,9 @@ extern "C" void init_sudo_signals(void)
         } else if (command == "AdbClearAuthorizations") {
             argv = {cp0_file_path("adb_helper"), "clear-authorizations"};
         } else if (command == "NtpSet") {
-            argv = {"timedatectl", "set-ntp", value == "1" ? "true" : "false"};
+            // Alpine/OpenRC: no systemd-timedated. cpz-ntp starts/stops
+            // busybox ntpd and records the choice in /var/lib/cpz/ntp.
+            argv = {"/usr/local/bin/cpz-ntp", "set", value == "1" ? "1" : "0"};
         } else if (command == "TimeSet") {
             const bool valid_shape = value.size() == 19 && value[4] == '-' && value[7] == '-' &&
                 value[10] == ' ' && value[13] == ':' && value[16] == ':';
